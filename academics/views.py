@@ -5,8 +5,8 @@ from rest_framework.views import APIView
 from rest_framework import status
 from rest_framework import mixins, generics
 
-from academics.models import Course
-from academics.serializers import CourseSerializer
+from academics.models import Course, Grade
+from academics.serializers import CourseSerializer, GradeSerializer
 
 # Create your views here.
 class CourseListView (APIView):
@@ -57,14 +57,37 @@ class CourseDetailView (APIView):
 
 #MIXINS AND GENERICS
 
-class GradeListView (mixins.CreateModelMixin):
-   print('hi')
+class GradeListView ( mixins.ListModelMixin ,mixins.CreateModelMixin, generics.GenericAPIView):
+   queryset = Grade.objects.all()
+   serializer_class = GradeSerializer
+
+   def get(self, request):
+       return self.list(request)
+   
+   def post(self, request):
+       return self.create(request)
+
+   
 
 
 
-# class GradeDetailView (APIView):
-#    print('hi')
+# class GradeDetailView (mixins.RetrieveModelMixin,mixins.UpdateModelMixin, mixins.DestroyModelMixin, generics.GenericAPIView):
+#    queryset = Grade.objects.all()
+#    serializer_class = GradeSerializer
+
+#    def get(self, request, pk):
+#        return self.retrieve(request, pk)
+   
+#    def put(self, request, pk):
+#        return self.update(request, pk)
+
+#    def delete(self, request, pk):
+#        return self.destroy(request, pk)
 
 
-# class GradeDetailView (APIView):
-#     print('hi')
+
+# Generics
+class GradeDetailView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = Grade.objects.all()
+    serializer_class = GradeSerializer
+    lookup_field = 'pk'
