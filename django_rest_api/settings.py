@@ -156,7 +156,7 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://localhost:3001",
     "http://localhost:5173",
-    "https://your-django-backend.onrender.com",
+    "https://backend-lms-lv7l.onrender.com",
 ]
 
 CORS_ALLOW_CREDENTIALS = True
