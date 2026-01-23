@@ -1,11 +1,31 @@
-from rest_framework import serializers
-
+﻿from rest_framework import serializers
 from users.models import User
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ('id', 'username', 'email', 'is_student', 'bio')
+        fields = ('id', 'username', 'email', 'is_student', 'bio', 'role')
+
+class ProfileSerializer(serializers.ModelSerializer):
+    profile_picture = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = User
+        fields = ('id', 'username', 'email', 'first_name', 'last_name', 'is_student', 
+                 'profile_picture', 'bio', 'avatar', 'role', 'date_joined')
+        read_only_fields = ('id', 'date_joined')
+    
+    def get_profile_picture(self, obj):
+        if obj.profile_picture:
+            return obj.profile_picture.url
+        return None
+    
+    def update(self, instance, validated_data):
+        # Handle profile updates
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+        return instance
 
 class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)

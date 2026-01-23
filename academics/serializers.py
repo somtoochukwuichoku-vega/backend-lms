@@ -5,7 +5,7 @@ class CourseSerializer(serializers.ModelSerializer):
     class Meta:
         model = Course
         fields = '__all__'
-    
+
     def to_representation(self, instance):
         # This handles the output (GET requests)
         data = super().to_representation(instance)
@@ -31,12 +31,13 @@ class EnrollmentSerializer(serializers.ModelSerializer):
         except Course.DoesNotExist:
             raise serializers.ValidationError({'courseId': 'Course not found'})
 
+        # Get user from context - don't pass it to create() since perform_create handles it
         user = self.context['request'].user
         if Enrollment.objects.filter(user=user, course=course).exists():
             raise serializers.ValidationError({'courseId': 'Already enrolled in this course'})
 
+        # Don't pass user here - let perform_create handle it
         enrollment = Enrollment.objects.create(
-            user=user,
             course=course,
             **validated_data
         )
