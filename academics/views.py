@@ -7,6 +7,7 @@ from rest_framework import mixins, generics
 
 from academics.models import Course
 from academics.serializers import CourseSerializer
+from rest_framework.parsers import MultiPartParser, FormParser
 
 # Create your views here.
 # class CourseListView (APIView):
@@ -99,8 +100,10 @@ from academics.serializers import CourseSerializer
 class CourseListView(generics.ListCreateAPIView):
     queryset = Course.objects.all()
     serializer_class = CourseSerializer
+    parser_classes = (MultiPartParser, FormParser)
 
 class CourseDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Course.objects.all()
     serializer_class = CourseSerializer
     lookup_field = 'pk'
+    parser_classes = (MultiPartParser, FormParser)
