@@ -176,6 +176,9 @@ CORS_ALLOWED_ORIGINS = [
 
 CORS_ALLOW_CREDENTIALS = True
 
+# For backward compatibility with django-cloudinary-storage
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+
 STORAGES = {
     'default': {
         'BACKEND': 'cloudinary_storage.storage.MediaCloudinaryStorage',
@@ -195,5 +198,6 @@ CLOUDINARY_STORAGE = {
 
 
 MEDIA_URL = '/media/'
+
 
 
