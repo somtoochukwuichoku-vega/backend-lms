@@ -1,101 +1,13 @@
-from django.http import Http404
-from django.shortcuts import render
+﻿from django.http import Http404
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from rest_framework import status
-from rest_framework import mixins, generics
-
-from academics.models import Course
-from academics.serializers import CourseSerializer
+from rest_framework import status, generics
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.parsers import MultiPartParser, FormParser
 
-# Create your views here.
-# class CourseListView (APIView):
-#     def get(self, request):
-#         course = Course.objects.all()
-#         serializer = CourseSerializer(course, many=True)
-#         return Response(serializer.data, status=status.HTTP_200_OK)
-    
-#     def post(self, request):
-#         serializer = CourseSerializer(data=request.data)
-#         if serializer.is_valid():
-#             serializer.save()
-#             return Response(serializer.data, status=status.HTTP_201_CREATED)
-#         print(serializer.errors)
-#         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-
-
-
-
-# class CourseDetailView (APIView):
-#     def get_object(self, pk):
-#         try: 
-#             return Course.objects.get(pk=pk)
-#         except Course.DoesNotExist:
-#             raise Http404
-        
-#     def get(self,request, pk):
-#         course = self.get_object(pk=pk)
-#         serializer = CourseSerializer(course)
-#         return Response(serializer.data, status=status.HTTP_200_OK)
-    
-#     def put(self,request, pk):
-#         course = self.get_object(pk=pk)
-#         serializer = CourseSerializer(course, data=request.data)
-#         if serializer.is_valid():
-#             serializer.save()
-#             return Response(serializer.data, status=status.HTTP_200_OK)
-#         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    
-#     def delete(self,request,pk):
-#        course = self.get_object(pk=pk) 
-#        course.delete()
-#        return Response(status=status.HTTP_204_NO_CONTENT)
-        
-
-
-
-#MIXINS AND GENERICS
-
-# class GradeListView ( mixins.ListModelMixin ,mixins.CreateModelMixin, generics.GenericAPIView):
-#    queryset = Grade.objects.all()
-#    serializer_class = GradeSerializer
-
-#    def get(self, request):
-#        return self.list(request)
-   
-#    def post(self, request):
-#        return self.create(request)
-
-   
-
-
-
-# class GradeDetailView (mixins.RetrieveModelMixin,mixins.UpdateModelMixin, mixins.DestroyModelMixin, generics.GenericAPIView):
-#    queryset = Grade.objects.all()
-#    serializer_class = GradeSerializer
-
-#    def get(self, request, pk):
-#        return self.retrieve(request, pk)
-   
-#    def put(self, request, pk):
-#        return self.update(request, pk)
-
-#    def delete(self, request, pk):
-#        return self.destroy(request, pk)
-
-
-
-# Generics
-# class GradeDetailView(generics.RetrieveUpdateDestroyAPIView):
-#     queryset = Grade.objects.all()
-#     serializer_class = GradeSerializer
-#     lookup_field = 'pk'
-
-
-
-# STARTINGB AFRESH
+from academics.models import Course, Enrollment
+from academics.serializers import CourseSerializer, EnrollmentSerializer
 
 class CourseListView(generics.ListCreateAPIView):
     queryset = Course.objects.all()
@@ -107,3 +19,55 @@ class CourseDetailView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = CourseSerializer
     lookup_field = 'pk'
     parser_classes = (MultiPartParser, FormParser)
+
+class EnrollmentListView(generics.ListCreateAPIView):
+    serializer_class = EnrollmentSerializer
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        return Enrollment.objects.filter(user=self.request.user)
+    
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def current_enrollments(request):
+    enrollments = Enrollment.objects.filter(user=request.user).select_related('course')
+    
+    enrolled_courses = []
+    for enrollment in enrollments:
+        course_data = CourseSerializer(enrollment.course).data
+        course_data['progress'] = enrollment.progress
+        course_data['completedLessons'] = enrollment.completed_lessons
+        course_data['isEnrolled'] = True
+        enrolled_courses.append(course_data)
+    
+    return Response(enrolled_courses, status=status.HTTP_200_OK)
+
+@api_view(['GET'])
+def courses_with_enrollment_status(request):
+    courses = Course.objects.all()
+    courses_data = []
+    
+    for course in courses:
+        course_data = CourseSerializer(course).data
+        
+        if request.user.is_authenticated:
+            try:
+                enrollment = Enrollment.objects.get(user=request.user, course=course)
+                course_data['isEnrolled'] = True
+                course_data['progress'] = enrollment.progress
+                course_data['completedLessons'] = enrollment.completed_lessons
+            except Enrollment.DoesNotExist:
+                course_data['isEnrolled'] = False
+                course_data['progress'] = 0
+                course_data['completedLessons'] = 0
+        else:
+            course_data['isEnrolled'] = False
+            course_data['progress'] = 0
+            course_data['completedLessons'] = 0
+            
+        courses_data.append(course_data)
+    
+    return Response(courses_data, status=status.HTTP_200_OK)

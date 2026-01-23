@@ -1,38 +1,41 @@
-from rest_framework import serializers
-
+﻿from rest_framework import serializers
 from academics.models import Assignment, Course, Enrollment
-
-
-
-
-# class GradeSerializer(serializers.ModelSerializer):
-#     class Meta:
-#         model = Grade
-#         fields = "__all__"
-#         read_only_fields = ['grade_letter']
-
-
 
 class CourseSerializer(serializers.ModelSerializer):
     class Meta:
         model = Course
-        fields = "__all__"
-
-
+        fields = '__all__'
 
 class EnrollmentSerializer(serializers.ModelSerializer):
-    # Mapping userId and courseId to match frontend requirements
     userId = serializers.ReadOnlyField(source='user.id')
-    courseId = serializers.ReadOnlyField(source='course.id')
-    completedLessons = serializers.IntegerField(source='completed_lessons')
-    isCompleted = serializers.BooleanField(source='is_completed')
+    courseId = serializers.CharField(write_only=True)
+    completedLessons = serializers.IntegerField(source='completed_lessons', read_only=True)
+    isCompleted = serializers.BooleanField(source='is_completed', read_only=True)
 
     class Meta:
         model = Enrollment
         fields = ['id', 'userId', 'courseId', 'progress', 'completedLessons', 'isCompleted']
+        read_only_fields = ['id', 'userId', 'progress', 'completedLessons', 'isCompleted']
+
+    def create(self, validated_data):
+        course_id = validated_data.pop('courseId')
+        try:
+            course = Course.objects.get(id=course_id)
+        except Course.DoesNotExist:
+            raise serializers.ValidationError({'courseId': 'Course not found'})
+        
+        user = self.context['request'].user
+        if Enrollment.objects.filter(user=user, course=course).exists():
+            raise serializers.ValidationError({'courseId': 'Already enrolled in this course'})
+        
+        enrollment = Enrollment.objects.create(
+            user=user,
+            course=course,
+            **validated_data
+        )
+        return enrollment
 
 class AssignmentSerializer(serializers.ModelSerializer):
-    # Adding courseName which is used in the dashboard UI
     courseName = serializers.ReadOnlyField(source='course.title')
     courseId = serializers.ReadOnlyField(source='course.id')
     dueDate = serializers.DateTimeField(source='due_date')
