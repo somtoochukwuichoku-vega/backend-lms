@@ -5,6 +5,13 @@ class CourseSerializer(serializers.ModelSerializer):
     class Meta:
         model = Course
         fields = '__all__'
+    
+    def to_representation(self, instance):
+        # This handles the output (GET requests)
+        data = super().to_representation(instance)
+        if instance.thumbnail:
+            data['thumbnail'] = instance.thumbnail.url
+        return data
 
 class EnrollmentSerializer(serializers.ModelSerializer):
     userId = serializers.ReadOnlyField(source='user.id')
@@ -23,11 +30,11 @@ class EnrollmentSerializer(serializers.ModelSerializer):
             course = Course.objects.get(id=course_id)
         except Course.DoesNotExist:
             raise serializers.ValidationError({'courseId': 'Course not found'})
-        
+
         user = self.context['request'].user
         if Enrollment.objects.filter(user=user, course=course).exists():
             raise serializers.ValidationError({'courseId': 'Already enrolled in this course'})
-        
+
         enrollment = Enrollment.objects.create(
             user=user,
             course=course,
