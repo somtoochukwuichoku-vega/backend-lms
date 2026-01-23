@@ -9,7 +9,7 @@ class Course(models.Model):
     title = models.CharField(max_length=255)
     description = models.TextField()
     instructor = models.CharField(max_length=255)
-    thumbnail = models.TextField(null=True, blank=True) 
+    thumbnail = models.ImageField(upload_to='course_thumbnails/', null=True, blank=True)
     category = models.CharField(max_length=100)
     duration = models.CharField(max_length=50)
     level = models.CharField(max_length=50) 
