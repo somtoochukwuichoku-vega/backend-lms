@@ -4,15 +4,28 @@ from django.conf import settings
 
 
 # Create your models here.
+
+class Course_category(models.Model):
+    name = models.CharField(max_length=100, unique=True)
+    
+    def __str__(self):
+        return self.name
+
+class Course_level(models.Model):
+    name = models.CharField(max_length=50, unique=True)
+
+    def __str__(self):
+        return self.name
 class Course(models.Model):
+    
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     title = models.CharField(max_length=255)
     description = models.TextField()
     instructor = models.CharField(max_length=255)
     thumbnail = models.ImageField(upload_to='course_thumbnails/', null=True, blank=True)
-    category = models.CharField(max_length=100)
+    category = models.ForeignKey(Course_category, on_delete=models.SET_NULL, null=True)
     duration = models.CharField(max_length=50)
-    level = models.CharField(max_length=50) 
+    level = models.ForeignKey(Course_level, on_delete=models.SET_NULL, null=True) 
     enrolled = models.IntegerField(default=0)
     rating = models.IntegerField(default=0)
     total_lessons = models.IntegerField(default=0)

@@ -21,7 +21,6 @@ class ProfileSerializer(serializers.ModelSerializer):
         return None
     
     def update(self, instance, validated_data):
-        # Handle profile updates
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         instance.save()

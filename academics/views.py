@@ -6,9 +6,20 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.parsers import MultiPartParser, FormParser
 
-from academics.models import Course, Enrollment
-from academics.serializers import CourseSerializer, EnrollmentSerializer
+from academics.models import Course, Course_category, Course_level, Enrollment
+from academics.serializers import CategorySerializer, CourseSerializer, EnrollmentSerializer, LevelSerializer
 
+
+
+class CategoryListCreateView(generics.ListCreateAPIView):
+    queryset = Course_category.objects.all()
+    serializer_class = CategorySerializer
+    permission_classes = [IsAuthenticated] # Ensure only logged-in users (admins) can do this
+
+class LevelListCreateView(generics.ListCreateAPIView):
+    queryset = Course_level.objects.all()
+    serializer_class = LevelSerializer
+    permission_classes = [IsAuthenticated]
 class CourseListView(generics.ListCreateAPIView):
     queryset = Course.objects.all()
     serializer_class = CourseSerializer

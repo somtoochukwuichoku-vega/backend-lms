@@ -1,5 +1,17 @@
 ﻿from rest_framework import serializers
-from academics.models import Assignment, Course, Enrollment
+from academics.models import Assignment, Course, Course_category, Course_level, Enrollment
+
+
+class CategorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Course_category
+        fields = '__all__'
+
+
+class LevelSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Course_level
+        fields = '__all__'
 
 class CourseSerializer(serializers.ModelSerializer):
     class Meta:
