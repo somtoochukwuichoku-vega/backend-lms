@@ -164,6 +164,7 @@ SPECTACULAR_SETTINGS = {
     'DESCRIPTION': 'API documentation for the Modern Learning Management System',
     'VERSION': '1.0.0',
     'SERVE_INCLUDE_SCHEMA': False,
+    'SCHEMA_PATH_PREFIX': r'/api/v1/',
 }
 AUTH_USER_MODEL = 'users.User'
 
