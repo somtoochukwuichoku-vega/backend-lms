@@ -2,9 +2,11 @@
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework import status, generics
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, parser_classes , renderer_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.parsers import MultiPartParser, FormParser
+
+from rest_framework.renderers import JSONRenderer, BrowsableAPIRenderer
 
 from academics.models import Course, Course_category, Course_level, Enrollment
 from academics.serializers import CategorySerializer, CourseSerializer, EnrollmentSerializer, LevelSerializer
@@ -56,29 +58,70 @@ def current_enrollments(request):
     
     return Response(enrolled_courses, status=status.HTTP_200_OK)
 
-@api_view(['GET'])
-def courses_with_enrollment_status(request):
-    courses = Course.objects.all()
-    courses_data = []
+# @api_view(['GET','POST'])
+# @parser_classes([MultiPartParser, FormParser])
+# @renderer_classes([JSONRenderer, BrowsableAPIRenderer])
+# def courses_with_enrollment_status(request):
+
+
+#     if request.method == 'POST':
+#         serializer = CourseSerializer(data=request.data)
+#         if serializer.is_valid():
+#             serializer.save()
+#             return Response(serializer.data, status=status.HTTP_201_CREATED)
+#         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
-    for course in courses:
-        course_data = CourseSerializer(course).data
+#     courses = Course.objects.all()
+#     courses_data = []
+    
+#     for course in courses:
+#         course_data = CourseSerializer(course).data
         
-        if request.user.is_authenticated:
-            try:
-                enrollment = Enrollment.objects.get(user=request.user, course=course)
-                course_data['isEnrolled'] = True
-                course_data['progress'] = enrollment.progress
-                course_data['completedLessons'] = enrollment.completed_lessons
-            except Enrollment.DoesNotExist:
+#         if request.user.is_authenticated:
+#             try:
+#                 enrollment = Enrollment.objects.get(user=request.user, course=course)
+#                 course_data['isEnrolled'] = True
+#                 course_data['progress'] = enrollment.progress
+#                 course_data['completedLessons'] = enrollment.completed_lessons
+#             except Enrollment.DoesNotExist:
+#                 course_data['isEnrolled'] = False
+#                 course_data['progress'] = 0
+#                 course_data['completedLessons'] = 0
+#         else:
+#             course_data['isEnrolled'] = False
+#             course_data['progress'] = 0
+#             course_data['completedLessons'] = 0
+            
+#         courses_data.append(course_data)
+    
+#     return Response(courses_data, status=status.HTTP_200_OK)
+class CourseListWithEnrollmentView(generics.ListCreateAPIView):
+    queryset = Course.objects.all()
+    serializer_class = CourseSerializer # This line enables the HTML form
+    parser_classes = (MultiPartParser, FormParser)
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.get_queryset()
+        courses_data = []
+        
+        for course in queryset:
+            course_data = self.get_serializer(course).data
+            
+            if request.user.is_authenticated:
+                try:
+                    enrollment = Enrollment.objects.get(user=request.user, course=course)
+                    course_data['isEnrolled'] = True
+                    course_data['progress'] = enrollment.progress
+                    course_data['completedLessons'] = enrollment.completed_lessons
+                except Enrollment.DoesNotExist:
+                    course_data['isEnrolled'] = False
+                    course_data['progress'] = 0
+                    course_data['completedLessons'] = 0
+            else:
                 course_data['isEnrolled'] = False
                 course_data['progress'] = 0
                 course_data['completedLessons'] = 0
-        else:
-            course_data['isEnrolled'] = False
-            course_data['progress'] = 0
-            course_data['completedLessons'] = 0
-            
-        courses_data.append(course_data)
-    
-    return Response(courses_data, status=status.HTTP_200_OK)
+                
+            courses_data.append(course_data)
+        
+        return Response(courses_data)
