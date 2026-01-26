@@ -9,4 +9,8 @@ urlpatterns = [
     path('courses/<uuid:pk>/', views.CourseDetailView.as_view()),
     path('enrollments/', views.EnrollmentListView.as_view()),
     path('enrollments/current/', views.current_enrollments),
+
+    path('assignments/', views.AssignmentListCreateView.as_view(), name='assignment-list'),
+    path('assignments/<uuid:pk>/', views.AssignmentDetailView.as_view(), name='assignment-detail'),
+    path('assignments/upcoming/', views.upcoming_assignments, name='upcoming-assignments'),
 ]

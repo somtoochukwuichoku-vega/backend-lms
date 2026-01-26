@@ -68,8 +68,15 @@ class EnrollmentSerializer(serializers.ModelSerializer):
 class AssignmentSerializer(serializers.ModelSerializer):
     courseName = serializers.ReadOnlyField(source='course.title')
     courseId = serializers.ReadOnlyField(source='course.id')
+    instructor = serializers.ReadOnlyField(source='course.instructor')
+    categoryName = serializers.ReadOnlyField(source='course.category.name')
+    levelName = serializers.ReadOnlyField(source='course.level.name')
     dueDate = serializers.DateTimeField(source='due_date')
 
     class Meta:
         model = Assignment
-        fields = ['id', 'courseId', 'courseName', 'title', 'description', 'dueDate', 'points', 'status']
+        fields = [
+            'id', 'course', 'courseId', 'courseName', 'instructor', 
+            'categoryName', 'levelName', 'title', 'description', 
+            'dueDate', 'points', 'status'
+        ]

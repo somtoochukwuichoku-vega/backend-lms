@@ -8,8 +8,8 @@ from rest_framework.parsers import MultiPartParser, FormParser
 
 from rest_framework.renderers import JSONRenderer, BrowsableAPIRenderer
 
-from academics.models import Course, Course_category, Course_level, Enrollment
-from academics.serializers import CategorySerializer, CourseSerializer, EnrollmentSerializer, LevelSerializer
+from academics.models import Assignment, Course, Course_category, Course_level, Enrollment
+from academics.serializers import AssignmentSerializer, CategorySerializer, CourseSerializer, EnrollmentSerializer, LevelSerializer
 
 
 
@@ -125,3 +125,38 @@ class CourseListWithEnrollmentView(generics.ListCreateAPIView):
             courses_data.append(course_data)
         
         return Response(courses_data)
+    
+
+class AssignmentListCreateView(generics.ListCreateAPIView):
+    serializer_class = AssignmentSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_staff:
+            return Assignment.objects.all()
+        
+        enrolled_course_ids = Enrollment.objects.filter(user=user).values_list('course_id', flat=True)
+        return Assignment.objects.filter(course_id__in=enrolled_course_ids)
+
+# View for Retrieving, Updating, and Deleting a specific Assignment
+class AssignmentDetailView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = Assignment.objects.all()
+    serializer_class = AssignmentSerializer
+    permission_classes = [IsAuthenticated]
+    lookup_field = 'pk'
+
+# Specialized Dashboard View
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def upcoming_assignments(request):
+    user = request.user
+    enrolled_courses = Enrollment.objects.filter(user=user).values_list('course_id', flat=True)
+    
+    assignments = Assignment.objects.filter(
+        course_id__in=enrolled_courses,
+        status="pending"
+    ).order_by('due_date')[:5]
+    
+    serializer = AssignmentSerializer(assignments, many=True)
+    return Response(serializer.data)
