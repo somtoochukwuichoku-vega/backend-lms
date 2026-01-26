@@ -14,6 +14,15 @@ class LevelSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 class CourseSerializer(serializers.ModelSerializer):
+
+    level = serializers.SlugRelatedField(
+        slug_field='name', 
+        queryset=Course_level.objects.all()
+    )
+    category = serializers.SlugRelatedField(
+        slug_field='name', 
+        queryset=Course_category.objects.all()
+    )
     class Meta:
         model = Course
         fields = '__all__'
@@ -21,6 +30,7 @@ class CourseSerializer(serializers.ModelSerializer):
     def to_representation(self, instance):
         # This handles the output (GET requests)
         data = super().to_representation(instance)
+        
         if instance.thumbnail:
             data['thumbnail'] = instance.thumbnail.url
         return data
