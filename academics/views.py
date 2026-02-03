@@ -1,15 +1,23 @@
-﻿from django.http import Http404
+﻿from django.conf import settings
+from django.http import Http404, HttpResponse
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework import status, generics
 from rest_framework.decorators import api_view, permission_classes, parser_classes , renderer_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.parsers import MultiPartParser, FormParser
+import stripe
+
+from payments.models import Transaction
+from .permissions import IsAdminUserRole
 
 from rest_framework.renderers import JSONRenderer, BrowsableAPIRenderer
 
 from academics.models import Assignment, Course, Course_category, Course_level, Enrollment
 from academics.serializers import AssignmentSerializer, CategorySerializer, CourseSerializer, EnrollmentSerializer, LevelSerializer
+from rest_framework.pagination import PageNumberPagination
+
+from django.views.decorators.csrf import csrf_exempt
 
 
 
@@ -43,20 +51,57 @@ class EnrollmentListView(generics.ListCreateAPIView):
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
 
+
+@csrf_exempt
+def stripe_webhook(request):
+    payload = request.body
+    sig_header = request.META.get('HTTP_STRIPE_SIGNATURE')
+    endpoint_secret = settings.STRIPE_WEBHOOK_SECRET
+
+    try:
+        event = stripe.Webhook.construct_event(payload, sig_header, endpoint_secret)
+    except Exception as e:
+        return HttpResponse(status=400)
+    if event['type'] == 'checkout.session.completed':
+        session = event['data']['object']
+        
+        # Fulfill the purchase
+        course_id = session['metadata']['course_id']
+        user_id = session['metadata']['user_id']
+        
+        # Update Transaction status
+        transaction = Transaction.objects.get(stripe_checkout_id=session['id'])
+        transaction.status = 'completed'
+        transaction.save()
+
+        # Create Enrollment in academics app
+        course = Course.objects.get(id=course_id)
+        from users.models import User
+        user = User.objects.get(id=user_id)
+        Enrollment.objects.get_or_create(user=user, course=course)
+
+    return HttpResponse(status=200)
+
+
+
+
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def current_enrollments(request):
     enrollments = Enrollment.objects.filter(user=request.user).select_related('course')
+
+    paginator = PageNumberPagination()
+    paginated_enrollments = paginator.paginate_queryset(enrollments, request)
     
     enrolled_courses = []
-    for enrollment in enrollments:
+    for enrollment in paginated_enrollments:
         course_data = CourseSerializer(enrollment.course).data
         course_data['progress'] = enrollment.progress
         course_data['completedLessons'] = enrollment.completed_lessons
         course_data['isEnrolled'] = True
         enrolled_courses.append(course_data)
     
-    return Response(enrolled_courses, status=status.HTTP_200_OK)
+    return paginator.get_paginated_response(enrolled_courses)
 
 # @api_view(['GET','POST'])
 # @parser_classes([MultiPartParser, FormParser])
@@ -98,6 +143,7 @@ def current_enrollments(request):
 class CourseListWithEnrollmentView(generics.ListCreateAPIView):
     queryset = Course.objects.all()
     serializer_class = CourseSerializer # This line enables the HTML form
+    permission_classes = [IsAdminUserRole]
     parser_classes = (MultiPartParser, FormParser)
 
     def list(self, request, *args, **kwargs):
@@ -143,7 +189,8 @@ class AssignmentListCreateView(generics.ListCreateAPIView):
 class AssignmentDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Assignment.objects.all()
     serializer_class = AssignmentSerializer
-    permission_classes = [IsAuthenticated]
+    # permission_classes = [IsAuthenticated]
+    permission_classes = [IsAdminUserRole]
     lookup_field = 'pk'
 
 # Specialized Dashboard View
