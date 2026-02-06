@@ -36,6 +36,8 @@ class Organization(models.Model):
     members = models.ManyToManyField(User, through='Membership', related_name='organizations')
     def __str__(self):
         return self.name
+    class Meta:
+     ordering = ['-id']
 
 
 class Membership(models.Model):

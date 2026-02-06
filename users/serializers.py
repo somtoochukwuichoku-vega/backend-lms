@@ -8,11 +8,11 @@ class UserSerializer(serializers.ModelSerializer):
 
 class ProfileSerializer(serializers.ModelSerializer):
     profile_picture = serializers.SerializerMethodField()
-    
+    roles = serializers.SerializerMethodField()
     class Meta:
         model = User
         fields = ('id', 'username', 'email', 'first_name', 'last_name', 
-                 'profile_picture', 'bio', 'avatar', 'date_joined')
+                 'profile_picture', 'bio', 'avatar', 'date_joined','roles')
         read_only_fields = ('id', 'date_joined')
     
     def get_roles(self, obj):
@@ -61,5 +61,4 @@ class OrganizationSerializer(serializers.ModelSerializer):
         # 2. Automatically make the creator the ADMIN
         Membership.objects.create(user=user, organization=org, role='admin')
         return org
-    class Meta:
-        ordering = ['-id']
+ 
