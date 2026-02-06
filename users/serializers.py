@@ -4,7 +4,7 @@ from users.models import Membership, Organization, User
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ('id', 'username', 'email', 'bio', 'role')
+        fields = ('id', 'username', 'email', 'bio')
 
 class ProfileSerializer(serializers.ModelSerializer):
     profile_picture = serializers.SerializerMethodField()
@@ -12,7 +12,7 @@ class ProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ('id', 'username', 'email', 'first_name', 'last_name', 
-                 'profile_picture', 'bio', 'avatar', 'role', 'date_joined')
+                 'profile_picture', 'bio', 'avatar', 'date_joined')
         read_only_fields = ('id', 'date_joined')
     
     def get_roles(self, obj):
@@ -51,7 +51,8 @@ class RegisterSerializer(serializers.ModelSerializer):
 class OrganizationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Organization
-        fields = ['name']
+        fields = ['name', 'id']
+        read_only_fields = ['id']
     def create(self, validated_data):
         user = self.context['request'].user
         # 1. Create the Organization
@@ -60,3 +61,5 @@ class OrganizationSerializer(serializers.ModelSerializer):
         # 2. Automatically make the creator the ADMIN
         Membership.objects.create(user=user, organization=org, role='admin')
         return org
+    class Meta:
+        ordering = ['-id']
