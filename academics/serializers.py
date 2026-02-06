@@ -1,5 +1,6 @@
 ﻿from rest_framework import serializers
 from academics.models import Assignment, Course, Course_category, Course_level, Enrollment
+from users.models import Membership
 
 
 class CategorySerializer(serializers.ModelSerializer):
@@ -26,6 +27,7 @@ class CourseSerializer(serializers.ModelSerializer):
     class Meta:
         model = Course
         fields = '__all__'
+        read_only_fields = ['instructor', 'organization', 'enrolled', 'rating']
 
     def to_representation(self, instance):
         # This handles the output (GET requests)
@@ -55,6 +57,12 @@ class EnrollmentSerializer(serializers.ModelSerializer):
 
         # Get user from context - don't pass it to create() since perform_create handles it
         user = self.context['request'].user
+
+        if not Membership.objects.filter(user=user, organization=course.organization).exists():
+            raise serializers.ValidationError(
+                {'detail': 'You must be a member of this organization to enroll in its courses.'}
+            )
+        
         if Enrollment.objects.filter(user=user, course=course).exists():
             raise serializers.ValidationError({'courseId': 'Already enrolled in this course'})
 
@@ -80,3 +88,4 @@ class AssignmentSerializer(serializers.ModelSerializer):
             'categoryName', 'levelName', 'title', 'description', 
             'dueDate', 'points', 'status'
         ]
+

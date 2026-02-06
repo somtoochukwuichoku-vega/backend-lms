@@ -1,10 +1,10 @@
 ﻿from rest_framework import serializers
-from users.models import User
+from users.models import Membership, Organization, User
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ('id', 'username', 'email', 'is_student', 'bio', 'role')
+        fields = ('id', 'username', 'email', 'bio', 'role')
 
 class ProfileSerializer(serializers.ModelSerializer):
     profile_picture = serializers.SerializerMethodField()
@@ -14,6 +14,12 @@ class ProfileSerializer(serializers.ModelSerializer):
         fields = ('id', 'username', 'email', 'first_name', 'last_name', 'is_student', 
                  'profile_picture', 'bio', 'avatar', 'role', 'date_joined')
         read_only_fields = ('id', 'date_joined')
+    
+    def get_roles(self, obj):
+        return [
+            {"org": member.organization.name, "role": member.role} 
+            for member in obj.memberships.all()
+        ]
     
     def get_profile_picture(self, obj):
         if obj.profile_picture:
@@ -31,7 +37,7 @@ class RegisterSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ('username', 'password', 'email', 'is_student')
+        fields = ('username', 'password', 'email')
 
     def create(self, validated_data):
         # use create_user to handle password hashing automatically
@@ -39,6 +45,18 @@ class RegisterSerializer(serializers.ModelSerializer):
             username=validated_data['username'],
             password=validated_data['password'],
             email=validated_data.get('email', ''),
-            is_student=validated_data.get('is_student', True)
         )
         return user
+
+class OrganizationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Organization
+        fields = ['name']
+    def create(self, validated_data):
+        user = self.context['request'].user
+        # 1. Create the Organization
+        org = Organization.objects.create(creator=user, **validated_data)
+        
+        # 2. Automatically make the creator the ADMIN
+        Membership.objects.create(user=user, organization=org, role='admin')
+        return org

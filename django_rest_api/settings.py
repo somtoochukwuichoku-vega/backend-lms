@@ -171,7 +171,7 @@ REST_FRAMEWORK = {
     }
 }
 SPECTACULAR_SETTINGS = {
-    'TITLE': 'LearnHub LMS API',
+    'TITLE': 'Learn-EZ LMS API',
     'DESCRIPTION': 'API documentation for the Modern Learning Management System',
     'VERSION': '1.0.0',
     'SERVE_INCLUDE_SCHEMA': False,

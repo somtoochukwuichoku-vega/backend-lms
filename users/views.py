@@ -3,8 +3,8 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.parsers import MultiPartParser, FormParser
-from .models import User
-from .serializers import RegisterSerializer, ProfileSerializer
+from .models import Organization, User
+from .serializers import OrganizationSerializer, RegisterSerializer, ProfileSerializer
 
 class RegisterView(generics.CreateAPIView):
     queryset = User.objects.all()
@@ -56,3 +56,10 @@ def change_password(request):
     user.save()
     
     return Response({'message': 'Password changed successfully'})
+
+class OrganizationListCreateView(generics.ListCreateAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = OrganizationSerializer
+    
+    def get_queryset(self):
+      return Organization.objects.filter(members=self.request.user)

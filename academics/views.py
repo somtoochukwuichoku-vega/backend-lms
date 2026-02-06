@@ -6,10 +6,12 @@ from rest_framework import status, generics
 from rest_framework.decorators import api_view, permission_classes, parser_classes , renderer_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework import filters
 import stripe
 
 from payments.models import Transaction
-from .permissions import IsAdminUserRole
+from users.models import Organization
+from .permissions import IsAdminUserRole, IsOrgInstructor
 
 from rest_framework.renderers import JSONRenderer, BrowsableAPIRenderer
 
@@ -18,13 +20,14 @@ from academics.serializers import AssignmentSerializer, CategorySerializer, Cour
 from rest_framework.pagination import PageNumberPagination
 
 from django.views.decorators.csrf import csrf_exempt
-
+from django.db import transaction
+from django.contrib.auth import get_user_model
 
 
 class CategoryListCreateView(generics.ListCreateAPIView):
     queryset = Course_category.objects.all()
     serializer_class = CategorySerializer
-    permission_classes = [IsAuthenticated] # Ensure only logged-in users (admins) can do this
+    permission_classes = [IsAuthenticated] # I want to Ensure only logged-in users (admins) can do this
 
 class LevelListCreateView(generics.ListCreateAPIView):
     queryset = Course_level.objects.all()
@@ -34,6 +37,9 @@ class CourseListView(generics.ListCreateAPIView):
     queryset = Course.objects.all()
     serializer_class = CourseSerializer
     parser_classes = (MultiPartParser, FormParser)
+
+    filter_backends = [filters.SearchFilter]
+    search_fields = ['title', 'description', 'instructor__username']
 
 class CourseDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Course.objects.all()
@@ -65,20 +71,19 @@ def stripe_webhook(request):
     if event['type'] == 'checkout.session.completed':
         session = event['data']['object']
         
-        # Fulfill the purchase
         course_id = session['metadata']['course_id']
         user_id = session['metadata']['user_id']
-        
-        # Update Transaction status
-        transaction = Transaction.objects.get(stripe_checkout_id=session['id'])
-        transaction.status = 'completed'
-        transaction.save()
 
-        # Create Enrollment in academics app
-        course = Course.objects.get(id=course_id)
-        from users.models import User
-        user = User.objects.get(id=user_id)
-        Enrollment.objects.get_or_create(user=user, course=course)
+        with transaction.atomic():
+        
+            tx = Transaction.objects.get(stripe_checkout_id=session['id'])
+            tx.status = 'completed'
+            tx.save()
+            
+            course = Course.objects.get(id=course_id)
+            User = get_user_model() # Safer way to get the User model
+            user = User.objects.get(id=user_id)
+            Enrollment.objects.get_or_create(user=user, course=course)
 
     return HttpResponse(status=200)
 
@@ -140,7 +145,23 @@ def current_enrollments(request):
 #         courses_data.append(course_data)
     
 #     return Response(courses_data, status=status.HTTP_200_OK)
-class CourseListWithEnrollmentView(generics.ListCreateAPIView):
+
+
+class CourseCreateView(generics.CreateAPIView):
+    serializer_class = CourseSerializer
+    permission_classes = [IsOrgInstructor]
+    parser_classes = (MultiPartParser, FormParser)
+
+    def perform_create(self, serializer):
+        
+        org_id = self.kwargs.get('org_id')
+        serializer.save(
+            instructor=self.request.user,
+            organization_id=org_id
+        )
+
+
+class CourseListWithEnrollmentView(generics.ListAPIView):
     queryset = Course.objects.all()
     serializer_class = CourseSerializer # This line enables the HTML form
     permission_classes = [IsAdminUserRole]
@@ -177,10 +198,14 @@ class AssignmentListCreateView(generics.ListCreateAPIView):
     serializer_class = AssignmentSerializer
     permission_classes = [IsAuthenticated]
 
+    filter_backends = [filters.SearchFilter]
+    search_fields = ['title', 'description', 'course__title']
+
     def get_queryset(self):
         user = self.request.user
         if user.is_staff:
-            return Assignment.objects.all()
+            user_orgs = Organization.objects.filter(members=user)
+            return Assignment.objects.filter(course__organization__in=user_orgs)
         
         enrolled_course_ids = Enrollment.objects.filter(user=user).values_list('course_id', flat=True)
         return Assignment.objects.filter(course_id__in=enrolled_course_ids)

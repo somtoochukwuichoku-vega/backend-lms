@@ -39,12 +39,11 @@ class CreateCheckoutSessionView(APIView):
                 }
 
             )
-            # Create a pending transaction
             Transaction.objects.create(
                 user=user,
                 course=course,
                 stripe_checkout_id=checkout_session.id,
-                amount=int(course.price * 100), # Match the unit_amount above
+                amount=int(course.price * 100),
                 status='pending'
             )
 
