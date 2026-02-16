@@ -65,27 +65,62 @@ def stripe_webhook(request):
     endpoint_secret = settings.STRIPE_WEBHOOK_SECRET
 
     try:
+        # Verifying to make sure the event came from Stripe
         event = stripe.Webhook.construct_event(payload, sig_header, endpoint_secret)
     except Exception as e:
         return HttpResponse(status=400)
+    
+    # We only care about successful payment completions
     if event['type'] == 'checkout.session.completed':
         session = event['data']['object']
         
+        tx_id = session['metadata'].get('transaction_id')
         course_id = session['metadata']['course_id']
         user_id = session['metadata']['user_id']
 
         with transaction.atomic():
-        
-            tx = Transaction.objects.get(stripe_checkout_id=session['id'])
-            tx.status = 'completed'
-            tx.save()
-            
-            course = Course.objects.get(id=course_id)
-            User = get_user_model() # Safer way to get the User model
-            user = User.objects.get(id=user_id)
-            Enrollment.objects.get_or_create(user=user, course=course)
 
+            # Find the local database record for this transaction using either the transaction_id or the Stripe checkout session ID
+            if tx_id:
+                tx = Transaction.objects.get(id=tx_id)
+            else:
+                tx = Transaction.objects.get(stripe_checkout_id=session['id'])
+
+            tx = Transaction.objects.get(stripe_checkout_id=session['id'])
+
+            # Save the Payment Intent ID (Needed for future refunds)
+            tx.stripe_payment_intent_id = session.get('payment_intent')
+
+            # Check the Payment Type
+            is_installment = session['metadata'].get('is_installment') == "True"
+
+            if is_installment:
+                # Increment the count of installments paid
+                tx.installments_paid += 1
+                tx.status = 'completed'
+                # Check if this was the final payment required
+
+                if tx.installments_paid >= tx.total_installments:
+                    tx.status = 'completed'
+                    # Fully unlock the course and create enrollment
+                    _enroll_user(user_id, course_id)
+                else:
+                    # Update status to partially paid to show progress in UI
+                    tx.status = 'partially_paid'       
+            else:
+                # Standard one-time payment logic
+                tx.status = 'completed'
+                _enroll_user(user_id, course_id)
+            
+            tx.save()
     return HttpResponse(status=200)
+
+def _enroll_user(user_id, course_id):
+    """Helper function to handle user enrollment safely"""
+    User = get_user_model()
+    user = User.objects.get(id=user_id)
+    course = Course.objects.get(id=course_id)
+    Enrollment.objects.get_or_create(user=user, course=course)
 
 
 

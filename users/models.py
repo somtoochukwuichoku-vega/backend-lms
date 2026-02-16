@@ -36,7 +36,7 @@ class Organization(models.Model):
     members = models.ManyToManyField(User, through='Membership', related_name='organizations')
     def __str__(self):
         return self.name
-    class Meta:
+    class Meta: 
      ordering = ['-id']
 
 
@@ -48,5 +48,11 @@ class Membership(models.Model):
         ('instructor', 'Instructor'), 
         ('student', 'Student')
     ])
+    invite_code = models.CharField(max_length=12, blank=True, null=True)
+    is_verified = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
     class Meta:
         unique_together = ('user', 'organization')
+
+
+        

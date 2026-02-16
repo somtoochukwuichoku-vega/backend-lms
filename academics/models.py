@@ -47,6 +47,36 @@ class Course(models.Model):
         return self.title
     
 
+class Module(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='modules')
+    title = models.CharField(max_length=255)
+    order = models.PositiveIntegerField(default=0)
+    class Meta:
+        ordering = ['order']
+
+
+class Lesson(models.Model):
+    LESSON_TYPES = [('video', 'Video'), ('text', 'Text'), ('quiz', 'Quiz')]
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    module = models.ForeignKey(Module, on_delete=models.CASCADE, related_name='lessons')
+    title = models.CharField(max_length=255)
+    content = models.TextField(blank=True)
+    lesson_type = models.CharField(max_length=20, choices=LESSON_TYPES, default='video')
+    video_url = models.URLField(null=True, blank=True)
+    order = models.PositiveIntegerField(default=0)
+    is_preview = models.BooleanField(default=False) # Allow students to see some lessons for free
+    class Meta:
+        ordering = ['order']
+
+class LessonStatus(models.Model):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)
+    lesson = models.ForeignKey(Lesson, on_delete=models.CASCADE)
+    is_completed = models.BooleanField(default=False)
+    completed_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('user', 'lesson')
 class Enrollment(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE)

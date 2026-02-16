@@ -1,5 +1,5 @@
 ﻿from rest_framework import serializers
-from academics.models import Assignment, Course, Course_category, Course_level, Enrollment
+from academics.models import Assignment, Course, Course_category, Course_level, Enrollment, Lesson, Module
 from users.models import Membership
 
 
@@ -14,8 +14,40 @@ class LevelSerializer(serializers.ModelSerializer):
         model = Course_level
         fields = '__all__'
 
-class CourseSerializer(serializers.ModelSerializer):
+class LessonSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Lesson
+        fields = '__all__'
+    
+    def to_representation(self, instance):
+        #Custom logic to hide video URLs from non-enrolled students#
+        data = super().to_representation(instance)
+        request = self.context.get('request')
+        
+        # If there is no authenticated user, or the lesson isn't a preview, 
+        if request and not instance.is_preview:
+            # Check if user is enrolled before showing video_url
+            from academics.models import Enrollment
+            is_enrolled = Enrollment.objects.filter(
+                user=request.user, 
+                course=instance.module.course
+            ).exists()
+            
+            if not is_enrolled:
+                data['video_url'] = None
+        return data
 
+class ModuleSerializer(serializers.ModelSerializer):
+    # This nests the lessons inside the module
+    lessons = LessonSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Module
+        fields = ['id', 'title', 'order', 'lessons']
+
+class CourseSerializer(serializers.ModelSerializer):
+    modules = ModuleSerializer(many=True, read_only=True)
+    
     level = serializers.SlugRelatedField(
         slug_field='name', 
         queryset=Course_level.objects.all()
