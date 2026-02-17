@@ -64,7 +64,9 @@ class Lesson(models.Model):
     content = models.TextField(blank=True)
     lesson_type = models.CharField(max_length=20, choices=LESSON_TYPES, default='video')
     video_url = models.URLField(null=True, blank=True)
+    video_file = models.FileField(upload_to='lessons/videos/', null=True, blank=True)
     order = models.PositiveIntegerField(default=0)
+    summary = models.TextField(blank=True, null=True)
     is_preview = models.BooleanField(default=False) # Allow students to see some lessons for free
     class Meta:
         ordering = ['order']

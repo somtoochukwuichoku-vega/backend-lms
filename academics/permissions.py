@@ -40,3 +40,15 @@ class IsOrgInstructor(permissions.BasePermission):
             organization_id=org_id, 
             role__in=['admin', 'instructor'] # Admins can also do instructor tasks
         ).exists()
+    
+class IsCourseInstructorOwner(permissions.BasePermission):
+    def has_object_permission(self, request, view, obj):
+        # Checking If the object is a Course, check its instructor
+        if hasattr(obj, 'instructor'):
+            return obj.instructor == request.user
+        # Checking If the object is a Lesson or Module, check the parent course instructor
+        if hasattr(obj, 'module'):
+            return obj.module.course.instructor == request.user
+        if hasattr(obj, 'course'):
+            return obj.course.instructor == request.user
+        return False

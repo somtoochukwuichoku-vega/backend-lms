@@ -35,6 +35,7 @@ class LessonSerializer(serializers.ModelSerializer):
             
             if not is_enrolled:
                 data['video_url'] = None
+                data['video_file'] = None
         return data
 
 class ModuleSerializer(serializers.ModelSerializer):

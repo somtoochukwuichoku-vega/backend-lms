@@ -1,5 +1,6 @@
 ﻿from django.conf import settings
 from django.http import Http404, HttpResponse
+from django.shortcuts import get_object_or_404
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework import status, generics
@@ -9,14 +10,15 @@ from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework import filters
 import stripe
 
+from academics.utils import generate_lesson_summary
 from payments.models import Transaction
 from users.models import Organization
 from .permissions import IsAdminUserRole, IsOrgInstructor
 
 from rest_framework.renderers import JSONRenderer, BrowsableAPIRenderer
 
-from academics.models import Assignment, Course, Course_category, Course_level, Enrollment
-from academics.serializers import AssignmentSerializer, CategorySerializer, CourseSerializer, EnrollmentSerializer, LevelSerializer
+from academics.models import Assignment, Course, Course_category, Course_level, Enrollment, Lesson, Module
+from academics.serializers import AssignmentSerializer, CategorySerializer, CourseSerializer, EnrollmentSerializer, LessonSerializer, LevelSerializer, ModuleSerializer
 from rest_framework.pagination import PageNumberPagination
 
 from django.views.decorators.csrf import csrf_exempt
@@ -86,7 +88,7 @@ def stripe_webhook(request):
             else:
                 tx = Transaction.objects.get(stripe_checkout_id=session['id'])
 
-            tx = Transaction.objects.get(stripe_checkout_id=session['id'])
+            # tx = Transaction.objects.get(stripe_checkout_id=session['id'])
 
             # Save the Payment Intent ID (Needed for future refunds)
             tx.stripe_payment_intent_id = session.get('payment_intent')
@@ -182,6 +184,31 @@ def current_enrollments(request):
 #     return Response(courses_data, status=status.HTTP_200_OK)
 
 
+class ModuleListCreateView(generics.ListCreateAPIView):
+    serializer_class = ModuleSerializer
+    permission_classes = [IsOrgInstructor]
+
+    def get_queryset(self):
+        # Only show modules belonging to the specific course in the URL
+        return Module.objects.filter(course_id=self.kwargs.get('course_id'))
+
+    def perform_create(self, serializer):
+        course_id = self.kwargs.get('course_id')
+        course = get_object_or_404(Course, id=course_id)
+
+        last_module = Module.objects.filter(course=course).order_by('-order').first()
+        # 2. If one exists, add 1. If not, start at 1.
+        next_order = (last_module.order + 1) if last_module else 1
+
+        serializer.save(course=course, order=next_order)
+
+
+class ModuleDetailView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = Module.objects.all()
+    serializer_class = ModuleSerializer
+    # Use the IsOrgInstructor or a custom IsCourseOwner permission
+    permission_classes = [IsAuthenticated, IsOrgInstructor]
+
 class CourseCreateView(generics.CreateAPIView):
     serializer_class = CourseSerializer
     permission_classes = [IsOrgInstructor]
@@ -194,7 +221,6 @@ class CourseCreateView(generics.CreateAPIView):
             instructor=self.request.user,
             organization_id=org_id
         )
-
 
 class CourseListWithEnrollmentView(generics.ListAPIView):
     queryset = Course.objects.all()
@@ -267,3 +293,49 @@ def upcoming_assignments(request):
     
     serializer = AssignmentSerializer(assignments, many=True)
     return Response(serializer.data)
+
+
+class LessonListCreateView(generics.ListCreateAPIView):
+    serializer_class = LessonSerializer
+    permission_classes = [IsOrgInstructor]
+    parser_classes = (MultiPartParser, FormParser)
+
+    def get_queryset(self):
+        # Only show lessons belonging to the specific module in the URL
+        return Lesson.objects.filter(module_id=self.kwargs.get('module_id'))
+
+    def perform_create(self, serializer):
+        module_id = self.kwargs.get('module_id')
+        module = get_object_or_404(Module, id=module_id)
+
+        last_lesson = Lesson.objects.filter(module=module).order_by('-order').first()
+        # Calculate the next order number
+        next_order = (last_lesson.order + 1) if last_lesson else 1  
+        serializer.save(module=module, order=next_order)
+
+
+class LessonDetailView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = Lesson.objects.all()
+    serializer_class = LessonSerializer
+    # Use the IsOrgInstructor or a custom IsCourseOwner permission
+    permission_classes = [IsAuthenticated, IsOrgInstructor]
+    parser_classes = (MultiPartParser, FormParser)
+    
+    
+class GenerateLessonSummaryView(APIView):
+    permission_classes = [IsAuthenticated, IsOrgInstructor]
+
+    def post(self, request, lesson_id):
+        lesson = get_object_or_404(Lesson, id=lesson_id)
+
+        #Calling the AI utility created in the utils.py file
+        new_summary = generate_lesson_summary(lesson.content)
+        
+        # Saving the generated content to the database
+        lesson.summary = new_summary
+        lesson.save()
+        
+        return Response({
+            "message": "Summary generated successfully!",
+            "summary": new_summary
+        })
