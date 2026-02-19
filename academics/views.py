@@ -1,4 +1,5 @@
-﻿from django.conf import settings
+﻿from time import timezone
+from django.conf import settings
 from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404
 from rest_framework.response import Response
@@ -10,10 +11,10 @@ from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework import filters
 import stripe
 
+from academics.permissions import IsCourseOwnerOrOrgAdmin, IsOrgInstructor, IsOrgInstructorOrReadOnly, IsOrgMember
 from academics.utils import generate_lesson_summary
 from payments.models import Transaction
-from users.models import Organization
-from .permissions import IsAdminUserRole, IsOrgInstructor
+from users.models import Delegation, Membership, Organization
 
 from rest_framework.renderers import JSONRenderer, BrowsableAPIRenderer
 
@@ -25,6 +26,8 @@ from django.views.decorators.csrf import csrf_exempt
 from django.db import transaction
 from django.contrib.auth import get_user_model
 
+from django.db.models import Q
+
 
 class CategoryListCreateView(generics.ListCreateAPIView):
     queryset = Course_category.objects.all()
@@ -35,19 +38,98 @@ class LevelListCreateView(generics.ListCreateAPIView):
     queryset = Course_level.objects.all()
     serializer_class = LevelSerializer
     permission_classes = [IsAuthenticated]
+
+#COURSES
 class CourseListView(generics.ListCreateAPIView):
-    queryset = Course.objects.all()
+    """
+    Public course list scoped to an org.
+    Any verified org member (student, instructor, admin) can list courses.
+    Search by title, description, or instructor username.
+    """
+    # queryset = Course.objects.all()
     serializer_class = CourseSerializer
+    permission_classes = [IsOrgMember]
     parser_classes = (MultiPartParser, FormParser)
 
     filter_backends = [filters.SearchFilter]
     search_fields = ['title', 'description', 'instructor__username']
 
-class CourseDetailView(generics.RetrieveUpdateDestroyAPIView):
-    queryset = Course.objects.all()
+    def get_queryset(self):
+        return Course.objects.filter(organization_id=self.kwargs.get('org_id'))
+
+
+class CourseCreateView(generics.CreateAPIView):
     serializer_class = CourseSerializer
+    permission_classes = [IsOrgInstructor]
+    parser_classes = (MultiPartParser, FormParser)
+
+    def perform_create(self, serializer):
+        
+        org_id = self.kwargs.get('org_id')
+        serializer.save(
+            instructor=self.request.user,
+            organization_id=org_id
+        )
+
+
+class CourseDetailView(generics.RetrieveUpdateDestroyAPIView):
+    # queryset = Course.objects.all()
+    serializer_class = CourseSerializer
+    permission_classes = [IsCourseOwnerOrOrgAdmin]
     lookup_field = 'pk'
     parser_classes = (MultiPartParser, FormParser)
+
+    def get_queryset(self):
+        return Course.objects.filter(organization_id=self.kwargs.get('org_id'))
+
+
+
+class CourseListWithEnrollmentView(generics.ListAPIView):
+    """
+    Returns courses with enrollment status attached.
+    Scoped to the authenticated user's org memberships.
+    Any authenticated user can access this.
+    """
+    # queryset = Course.objects.all()
+
+    serializer_class = CourseSerializer # This line enables the HTML form
+    permission_classes = [IsAuthenticated]
+    parser_classes = (MultiPartParser, FormParser)
+
+    def get_queryset(self):
+        # Return only courses from orgs the user belongs to
+        user_org_ids = Membership.objects.filter(
+            user=self.request.user,
+            is_verified=True
+        ).values_list('organization_id', flat=True)
+        return Course.objects.filter(organization_id__in=user_org_ids)
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.get_queryset()
+        courses_data = []
+        
+        for course in queryset:
+            course_data = self.get_serializer(course).data
+            
+            if request.user.is_authenticated:
+                try:
+                    enrollment = Enrollment.objects.get(user=request.user, course=course)
+                    course_data['isEnrolled'] = True
+                    course_data['progress'] = enrollment.progress
+                    course_data['completedLessons'] = enrollment.completed_lessons
+                except Enrollment.DoesNotExist:
+                    course_data['isEnrolled'] = False
+                    course_data['progress'] = 0
+                    course_data['completedLessons'] = 0
+            else:
+                course_data['isEnrolled'] = False
+                course_data['progress'] = 0
+                course_data['completedLessons'] = 0
+                
+            courses_data.append(course_data)
+        
+        return Response(courses_data)
+    
 
 class EnrollmentListView(generics.ListCreateAPIView):
     serializer_class = EnrollmentSerializer
@@ -183,10 +265,10 @@ def current_enrollments(request):
     
 #     return Response(courses_data, status=status.HTTP_200_OK)
 
-
+#MODULES
 class ModuleListCreateView(generics.ListCreateAPIView):
     serializer_class = ModuleSerializer
-    permission_classes = [IsOrgInstructor]
+    permission_classes = [IsOrgInstructorOrReadOnly]
 
     def get_queryset(self):
         # Only show modules belonging to the specific course in the URL
@@ -207,97 +289,18 @@ class ModuleDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Module.objects.all()
     serializer_class = ModuleSerializer
     # Use the IsOrgInstructor or a custom IsCourseOwner permission
-    permission_classes = [IsAuthenticated, IsOrgInstructor]
-
-class CourseCreateView(generics.CreateAPIView):
-    serializer_class = CourseSerializer
-    permission_classes = [IsOrgInstructor]
-    parser_classes = (MultiPartParser, FormParser)
-
-    def perform_create(self, serializer):
-        
-        org_id = self.kwargs.get('org_id')
-        serializer.save(
-            instructor=self.request.user,
-            organization_id=org_id
-        )
-
-class CourseListWithEnrollmentView(generics.ListAPIView):
-    queryset = Course.objects.all()
-    serializer_class = CourseSerializer # This line enables the HTML form
-    permission_classes = [IsAdminUserRole]
-    parser_classes = (MultiPartParser, FormParser)
-
-    def list(self, request, *args, **kwargs):
-        queryset = self.get_queryset()
-        courses_data = []
-        
-        for course in queryset:
-            course_data = self.get_serializer(course).data
-            
-            if request.user.is_authenticated:
-                try:
-                    enrollment = Enrollment.objects.get(user=request.user, course=course)
-                    course_data['isEnrolled'] = True
-                    course_data['progress'] = enrollment.progress
-                    course_data['completedLessons'] = enrollment.completed_lessons
-                except Enrollment.DoesNotExist:
-                    course_data['isEnrolled'] = False
-                    course_data['progress'] = 0
-                    course_data['completedLessons'] = 0
-            else:
-                course_data['isEnrolled'] = False
-                course_data['progress'] = 0
-                course_data['completedLessons'] = 0
-                
-            courses_data.append(course_data)
-        
-        return Response(courses_data)
-    
-
-class AssignmentListCreateView(generics.ListCreateAPIView):
-    serializer_class = AssignmentSerializer
-    permission_classes = [IsAuthenticated]
-
-    filter_backends = [filters.SearchFilter]
-    search_fields = ['title', 'description', 'course__title']
+    permission_classes = [IsCourseOwnerOrOrgAdmin]
 
     def get_queryset(self):
-        user = self.request.user
-        if user.is_staff:
-            user_orgs = Organization.objects.filter(members=user)
-            return Assignment.objects.filter(course__organization__in=user_orgs)
-        
-        enrolled_course_ids = Enrollment.objects.filter(user=user).values_list('course_id', flat=True)
-        return Assignment.objects.filter(course_id__in=enrolled_course_ids)
-
-# View for Retrieving, Updating, and Deleting a specific Assignment
-class AssignmentDetailView(generics.RetrieveUpdateDestroyAPIView):
-    queryset = Assignment.objects.all()
-    serializer_class = AssignmentSerializer
-    # permission_classes = [IsAuthenticated]
-    permission_classes = [IsAdminUserRole]
-    lookup_field = 'pk'
-
-# Specialized Dashboard View
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def upcoming_assignments(request):
-    user = request.user
-    enrolled_courses = Enrollment.objects.filter(user=user).values_list('course_id', flat=True)
-    
-    assignments = Assignment.objects.filter(
-        course_id__in=enrolled_courses,
-        status="pending"
-    ).order_by('due_date')[:5]
-    
-    serializer = AssignmentSerializer(assignments, many=True)
-    return Response(serializer.data)
+        return Module.objects.filter(
+            course__organization_id=self.kwargs.get('org_id')
+        ).select_related('course')
 
 
+#LESSON
 class LessonListCreateView(generics.ListCreateAPIView):
     serializer_class = LessonSerializer
-    permission_classes = [IsOrgInstructor]
+    permission_classes = [IsOrgInstructorOrReadOnly]
     parser_classes = (MultiPartParser, FormParser)
 
     def get_queryset(self):
@@ -318,10 +321,15 @@ class LessonDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Lesson.objects.all()
     serializer_class = LessonSerializer
     # Use the IsOrgInstructor or a custom IsCourseOwner permission
-    permission_classes = [IsAuthenticated, IsOrgInstructor]
+    permission_classes = [IsCourseOwnerOrOrgAdmin]
     parser_classes = (MultiPartParser, FormParser)
+
     
-    
+    def get_queryset(self):
+        return Lesson.objects.filter(
+            module__course__organization_id=self.kwargs.get('org_id')
+        ).select_related('module__course')
+
 class GenerateLessonSummaryView(APIView):
     permission_classes = [IsAuthenticated, IsOrgInstructor]
 
@@ -339,3 +347,116 @@ class GenerateLessonSummaryView(APIView):
             "message": "Summary generated successfully!",
             "summary": new_summary
         })
+
+#ASSIGNMENT
+class AssignmentListCreateView(generics.ListCreateAPIView):
+    serializer_class = AssignmentSerializer
+    permission_classes = [IsAuthenticated]
+
+    filter_backends = [filters.SearchFilter]
+    search_fields = ['title', 'description', 'course__title']
+
+    def get_queryset(self):
+        from academics.permissions import get_effective_role
+        user = self.request.user
+
+         # Superusers see everything
+        if user.is_superuser:
+            return Assignment.objects.all().select_related('course__organization')
+        
+        # Find all orgs where user has instructor or admin access (permanent or delegated)
+        # Orgs via permanent membership
+        instructor_org_ids = set(
+            Membership.objects.filter(
+                user=user,
+                role__in=['admin', 'instructor'],
+                is_verified=True
+            ).values_list('organization_id', flat=True)
+        )
+
+        # Orgs via active delegation
+        delegated_org_ids = set(
+            Delegation.objects.filter(
+                granted_to=user,
+                temp_role__in=['admin', 'instructor'],
+                is_active=True
+            ).filter(
+                Q(expires_at__isnull=True) | Q(expires_at__gt=timezone.now())
+            ).values_list('organization_id', flat=True)
+        )
+
+        elevated_org_ids = instructor_org_ids | delegated_org_ids
+
+        if elevated_org_ids:
+            return Assignment.objects.filter(
+                course__organization_id__in=elevated_org_ids
+            ).select_related('course__organization')
+
+        # Students: only assignments for enrolled courses
+        enrolled_course_ids = Enrollment.objects.filter(
+            user=user
+        ).values_list('course_id', flat=True)
+        return Assignment.objects.filter(
+            course_id__in=enrolled_course_ids
+        ).select_related('course__organization')
+
+# View for Retrieving, Updating, and Deleting a specific Assignment
+class AssignmentDetailView(generics.RetrieveUpdateDestroyAPIView): 
+    queryset = Assignment.objects.all()
+    serializer_class = AssignmentSerializer
+    permission_classes = [IsCourseOwnerOrOrgAdmin]
+    lookup_field = 'pk'
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_superuser:
+            return Assignment.objects.all().select_related('course__organization')
+
+        instructor_org_ids = set(
+            Membership.objects.filter(
+                user=user,
+                role__in=['admin', 'instructor'],
+                is_verified=True
+            ).values_list('organization_id', flat=True)
+        )
+        delegated_org_ids = set(
+            Delegation.objects.filter(
+                granted_to=user,
+                temp_role__in=['admin', 'instructor'],
+                is_active=True
+            ).filter(
+                Q(expires_at__isnull=True) | Q(expires_at__gt=timezone.now())
+            ).values_list('organization_id', flat=True)
+        )
+
+        elevated_org_ids = instructor_org_ids | delegated_org_ids
+
+        if elevated_org_ids:
+            return Assignment.objects.filter(
+                course__organization_id__in=elevated_org_ids
+            ).select_related('course__organization')
+
+        enrolled_course_ids = Enrollment.objects.filter(
+            user=user
+        ).values_list('course_id', flat=True)
+        return Assignment.objects.filter(
+            course_id__in=enrolled_course_ids
+        ).select_related('course__organization')
+    
+# Specialized Dashboard View
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def upcoming_assignments(request):
+    user = request.user
+    enrolled_courses = Enrollment.objects.filter(user=user).values_list('course_id', flat=True)
+    
+    assignments = Assignment.objects.filter(
+        course_id__in=enrolled_courses,
+        status="pending"
+    ).order_by('due_date')[:5]
+    
+    serializer = AssignmentSerializer(assignments, many=True)
+    return Response(serializer.data)
+
+
+    

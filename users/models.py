@@ -1,4 +1,6 @@
 from enum import member
+from pyexpat import model
+from time import timezone
 import uuid
 from django.db import models 
 from django.contrib.auth.models import AbstractUser
@@ -54,5 +56,86 @@ class Membership(models.Model):
     class Meta:
         unique_together = ('user', 'organization')
 
+    def __str__(self):
+        return f"{self.user.username} — {self.role} in {self.organization.name}"
 
-        
+
+class Delegation(models.Model):
+    DELEGABLE_ROLES = [
+        ('instructor', 'instructor'),
+        ('admin', 'admin')
+    ]
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+
+    granted_to = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='delegations_received',
+        help_text="The User receiving elevated access"
+    )
+    granted_by = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='delegations_granted',
+        help_text="The Org admin or superuser who approved this"
+    )
+    organization = models.ForeignKey(
+        Organization,
+        on_delete=models.CASCADE,
+        related_name='delegations'
+    )
+    temp_role = models.CharField(
+        max_length=20,
+        choices=DELEGABLE_ROLES,
+        help_text="The elevated role being granted."
+    )
+    expires_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Leave blank for a permanent delegation. Set a datetime for auto-expiry."
+    )
+    is_active = models.BooleanField(
+        default=True,
+        help_text="Set to False to revoke access without deleting the record."
+    )
+    # Audit trail
+    created_at = models.DateTimeField(auto_now_add=True)
+    revoked_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Automatically set when is_active is flipped to False."
+    )
+    reason = models.TextField(
+        blank=True,
+        help_text="Optional note explaining why this delegation was granted."
+    )
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            # This index makes the permission check fast even with many delegations
+            models.Index(fields=['granted_to', 'organization', 'is_active']),
+        ]
+
+    def __str__(self):
+        expiry = self.expires_at.strftime('%Y-%m-%d') if self.expires_at else 'permanent'
+        return (
+            f"{self.granted_to.username} → {self.temp_role} "
+            f"in {self.organization.name} (expires: {expiry})"
+        )
+    
+    @property
+    def is_currently_valid(self):
+
+        if not self.is_active:
+            return False
+        if self.expires_at and self.expires_at <= timezone.now():
+            return False
+        return True
+
+    def revoke(self):
+        self.is_active = False
+        self.revoked_at = timezone.now()
+        self.save(update_fields=['is_active', 'revoked_at'])
+
+
+

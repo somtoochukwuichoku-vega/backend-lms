@@ -25,17 +25,21 @@ class LessonSerializer(serializers.ModelSerializer):
         request = self.context.get('request')
         
         # If there is no authenticated user, or the lesson isn't a preview, 
-        if request and not instance.is_preview:
-            # Check if user is enrolled before showing video_url
-            from academics.models import Enrollment
-            is_enrolled = Enrollment.objects.filter(
-                user=request.user, 
-                course=instance.module.course
-            ).exists()
-            
-            if not is_enrolled:
+        if not instance.is_preview:
+            hide_video = True  # default: hide
+
+            if request and request.user and request.user.is_authenticated:
+                is_enrolled = Enrollment.objects.filter(
+                    user=request.user,
+                    course=instance.module.course
+                ).exists()
+                if is_enrolled:
+                    hide_video = False
+
+            if hide_video:
                 data['video_url'] = None
                 data['video_file'] = None
+
         return data
 
 class ModuleSerializer(serializers.ModelSerializer):

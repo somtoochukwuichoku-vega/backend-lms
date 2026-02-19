@@ -32,6 +32,7 @@ urlpatterns = [
     path('api/v1/', include('academics.urls')),
     path('api/v1/auth/', include('users.urls')),
     path('api/v1/', include('payments.urls')),
+    path('api/v1/delegations/', include('delegations.urls')),
 
     # documentation
     path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
