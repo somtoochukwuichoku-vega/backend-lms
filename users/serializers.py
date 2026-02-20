@@ -52,13 +52,13 @@ class OrganizationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Organization
         fields = ['name', 'id']
-        read_only_fields = ['id']
+        read_only_fields = ['id', 'creator', 'created_at', 'updated_at']
     def create(self, validated_data):
         user = self.context['request'].user
         # 1. Create the Organization
         org = Organization.objects.create(creator=user, **validated_data)
         
         # 2. Automatically make the creator the ADMIN
-        Membership.objects.create(user=user, organization=org, role='admin')
+        Membership.objects.create(user=user, organization=org, role='admin', is_verified=True)
         return org
  

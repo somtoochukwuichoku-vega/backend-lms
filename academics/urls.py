@@ -7,8 +7,7 @@ urlpatterns = [
     path('levels/', views.LevelListCreateView.as_view(), name='level-list'),
 
     #ORGS-COURSES
-    path('org/<uuid:org_id>/courses/', views.CourseListView.as_view(), name='course-list'),
-    path('org/<uuid:org_id>/courses/create/', views.CourseCreateView.as_view(), name='course-create'),
+    path('org/<uuid:org_id>/courses/', views.CourseListCreateView.as_view(), name='course-list-create'),
     path('org/<uuid:org_id>/courses/<uuid:pk>/', views.CourseDetailView.as_view(), name='course-detail'),
 
     # Modules — nested under org + course

@@ -23,6 +23,10 @@ class LessonSerializer(serializers.ModelSerializer):
         #Custom logic to hide video URLs from non-enrolled students#
         data = super().to_representation(instance)
         request = self.context.get('request')
+
+        if instance.video_file:
+            # .url handles the Cloudinary absolute path conversion
+            data['video_file'] = instance.video_file.url
         
         # If there is no authenticated user, or the lesson isn't a preview, 
         if not instance.is_preview:
@@ -33,7 +37,9 @@ class LessonSerializer(serializers.ModelSerializer):
                     user=request.user,
                     course=instance.module.course
                 ).exists()
-                if is_enrolled:
+                is_instructor = instance.module.course.instructor == request.user
+
+                if is_enrolled or is_instructor:
                     hide_video = False
 
             if hide_video:
@@ -48,7 +54,8 @@ class ModuleSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Module
-        fields = ['id', 'title', 'order', 'lessons']
+        fields = '__all__'
+        read_only_fields = ['module', 'order'] 
 
 class CourseSerializer(serializers.ModelSerializer):
     modules = ModuleSerializer(many=True, read_only=True)
@@ -64,7 +71,7 @@ class CourseSerializer(serializers.ModelSerializer):
     class Meta:
         model = Course
         fields = '__all__'
-        read_only_fields = ['instructor', 'organization', 'enrolled', 'rating']
+        read_only_fields = ['instructor', 'organization_id', 'enrolled', 'rating', 'installment_amount' ]
 
     def to_representation(self, instance):
         # This handles the output (GET requests)
@@ -73,6 +80,27 @@ class CourseSerializer(serializers.ModelSerializer):
         if instance.thumbnail:
             data['thumbnail'] = instance.thumbnail.url
         return data
+    
+    def validate(self, data):
+        # Can't have installments on a free course
+        if data.get('is_free') and data.get('allows_installments'):
+            raise serializers.ValidationError(
+                "Free courses cannot have installment payments."
+            )
+        
+        # If installments are allowed, must specify count
+        if data.get('allows_installments') and not data.get('installment_count'):
+            raise serializers.ValidationError(
+                "Must specify installment_count when allows_installments is True."
+            )
+        
+        # Installment count must be at least 2
+        if data.get('allows_installments') and data.get('installment_count', 0) < 2:
+            raise serializers.ValidationError(
+                "Installment count must be at least 2."
+            )
+        return data
+    
 
 class EnrollmentSerializer(serializers.ModelSerializer):
     userId = serializers.ReadOnlyField(source='user.id')

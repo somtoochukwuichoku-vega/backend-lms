@@ -111,7 +111,7 @@ DATABASES = {
     'default': dj_database_url.config(
         # This will automatically use the DATABASE_URL environment variable on Render
         default=os.environ.get('DATABASE_URL'),
-        conn_max_age=600,
+        conn_max_age=6000,
         conn_health_checks=True,
     )
 }
@@ -220,7 +220,9 @@ CLOUDINARY_STORAGE = {
     'CLOUD_NAME': os.environ.get('CLOUDINARY_CLOUD_NAME'),
     'API_KEY': os.environ.get('CLOUDINARY_API_KEY'),
     'API_SECRET': os.environ.get('CLOUDINARY_API_SECRET'),
+    'RESOURCE_TYPES': ['image', 'video', 'raw'],
 }
+
 
 
 MEDIA_URL = '/media/'
@@ -230,6 +232,8 @@ STRIPE_PUBLISHABLE_KEY = os.getenv('STRIPE_PUBLISHABLE_KEY')
 STRIPE_SECRET_KEY = os.getenv('STRIPE_SECRET_KEY')
 STRIPE_WEBHOOK_SECRET = os.getenv('STRIPE_WEBHOOK_SECRET')
 CLIENT_URL = os.getenv('CLIENT_URL', 'http://localhost:3000')
+ASSEMBLY_AI_API_KEY = os.getenv('ASSEMBLY_AI_API_KEY')
+GROQ_API_KEY = os.getenv('GROQ_API_KEY')
 
 
 

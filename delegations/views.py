@@ -1,4 +1,4 @@
-from time import timezone
+from django.utils import timezone
 from django.shortcuts import get_object_or_404, render
 from rest_framework import generics, status
 

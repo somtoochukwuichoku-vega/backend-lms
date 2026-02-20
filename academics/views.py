@@ -1,4 +1,4 @@
-﻿from time import timezone
+﻿from django.utils import timezone
 from django.conf import settings
 from django.http import Http404, HttpResponse
 from django.shortcuts import get_object_or_404
@@ -23,7 +23,7 @@ from academics.serializers import AssignmentSerializer, CategorySerializer, Cour
 from rest_framework.pagination import PageNumberPagination
 
 from django.views.decorators.csrf import csrf_exempt
-from django.db import transaction
+from django.db import connection, transaction
 from django.contrib.auth import get_user_model
 
 from django.db.models import Q
@@ -40,7 +40,7 @@ class LevelListCreateView(generics.ListCreateAPIView):
     permission_classes = [IsAuthenticated]
 
 #COURSES
-class CourseListView(generics.ListCreateAPIView):
+class CourseListCreateView(generics.ListCreateAPIView):
     """
     Public course list scoped to an org.
     Any verified org member (student, instructor, admin) can list courses.
@@ -48,7 +48,7 @@ class CourseListView(generics.ListCreateAPIView):
     """
     # queryset = Course.objects.all()
     serializer_class = CourseSerializer
-    permission_classes = [IsOrgMember]
+    permission_classes = [IsOrgInstructorOrReadOnly]
     parser_classes = (MultiPartParser, FormParser)
 
     filter_backends = [filters.SearchFilter]
@@ -56,19 +56,11 @@ class CourseListView(generics.ListCreateAPIView):
 
     def get_queryset(self):
         return Course.objects.filter(organization_id=self.kwargs.get('org_id'))
-
-
-class CourseCreateView(generics.CreateAPIView):
-    serializer_class = CourseSerializer
-    permission_classes = [IsOrgInstructor]
-    parser_classes = (MultiPartParser, FormParser)
-
+    
     def perform_create(self, serializer):
-        
-        org_id = self.kwargs.get('org_id')
         serializer.save(
             instructor=self.request.user,
-            organization_id=org_id
+            organization_id=self.kwargs.get('org_id')
         )
 
 
@@ -333,20 +325,28 @@ class LessonDetailView(generics.RetrieveUpdateDestroyAPIView):
 class GenerateLessonSummaryView(APIView):
     permission_classes = [IsAuthenticated, IsOrgInstructor]
 
-    def post(self, request, lesson_id):
+    def post(self, request,org_id, lesson_id):
         lesson = get_object_or_404(Lesson, id=lesson_id)
 
-        #Calling the AI utility created in the utils.py file
-        new_summary = generate_lesson_summary(lesson.content)
-        
-        # Saving the generated content to the database
-        lesson.summary = new_summary
-        lesson.save()
-        
-        return Response({
-            "message": "Summary generated successfully!",
-            "summary": new_summary
-        })
+        connection.close()
+
+        try:
+            # Call our new AssemblyAI + Groq utility
+            ai_results = generate_lesson_summary(lesson)
+            
+            # Save both results to DB
+            lesson.transcript = ai_results['transcript']
+            lesson.summary = ai_results['summary']
+            lesson.save()
+            
+            return Response({
+                "message": "AI Processing Complete",
+                "transcript": lesson.transcript,
+                "summary": lesson.summary
+            })
+        except Exception as e:
+            return Response({"error": str(e)}, status=500)
+
 
 #ASSIGNMENT
 class AssignmentListCreateView(generics.ListCreateAPIView):

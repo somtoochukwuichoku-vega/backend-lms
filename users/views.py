@@ -67,6 +67,7 @@ class OrganizationListCreateView(generics.ListCreateAPIView):
     
     def get_queryset(self):
       return Organization.objects.filter(members=self.request.user)
+
     
 class RequestJoinView(APIView):
     permission_classes = [IsAuthenticated]

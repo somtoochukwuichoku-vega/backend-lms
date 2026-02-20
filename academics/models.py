@@ -2,6 +2,8 @@ from django.db import models
 import uuid
 from django.conf import settings
 
+from cloudinary.models import CloudinaryField
+
 
 # Create your models here.
 
@@ -35,6 +37,24 @@ class Course(models.Model):
     rating = models.IntegerField(default=0)
     total_lessons = models.IntegerField(default=0)
     price = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    is_free = models.BooleanField(default=False)
+
+    # NEW: Payment options
+    allows_installments = models.BooleanField(
+        default=False,
+        help_text="Can students pay in installments?"
+    )
+    installment_count = models.PositiveIntegerField(
+        default=1,
+        help_text="How many installments are allowed"
+    )
+    installment_amount = models.DecimalField(
+        max_digits=10, 
+        decimal_places=2, 
+        null=True, 
+        blank=True,
+        help_text="Amount per installment (auto-calculated if blank)"
+    )
     organization = models.ForeignKey(
         'users.Organization', 
         on_delete=models.CASCADE, 
@@ -45,6 +65,19 @@ class Course(models.Model):
 
     def __str__(self):
         return self.title
+    
+    def save(self, *args, **kwargs):
+        # Auto-calculate installment amount if allows_installments is True
+        if self.allows_installments and not self.installment_amount:
+            if self.installment_count > 0:
+                self.installment_amount = self.price / self.installment_count
+        
+        # If free, set price to 0
+        if self.is_free:
+            self.price = 0
+            self.allows_installments = False
+            
+        super().save(*args, **kwargs)
     
 
 class Module(models.Model):
@@ -64,9 +97,16 @@ class Lesson(models.Model):
     content = models.TextField(blank=True)
     lesson_type = models.CharField(max_length=20, choices=LESSON_TYPES, default='video')
     video_url = models.URLField(null=True, blank=True)
-    video_file = models.FileField(upload_to='lessons/videos/', null=True, blank=True)
+    video_file = CloudinaryField(
+        'video', 
+        resource_type='video', 
+        null=True, 
+        blank=True,
+        folder='lessons/videos/'
+    )
     order = models.PositiveIntegerField(default=0)
     summary = models.TextField(blank=True, null=True)
+    transcript = models.TextField(blank=True, null=True)
     is_preview = models.BooleanField(default=False) # Allow students to see some lessons for free
     class Meta:
         ordering = ['order']
