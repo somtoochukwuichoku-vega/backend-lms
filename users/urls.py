@@ -1,7 +1,14 @@
 ﻿from django.urls import path
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
-from users.views import AdminManageMembershipView, OrganizationListCreateView, RegisterView, ProfileView, RequestJoinView, VerifyMembershipView, change_password
+from users.views import (
+    AdminManageMembershipView, 
+    OrganizationListCreateView, 
+    RegisterView, 
+    ProfileView, 
+    EnrollOrganizationView,
+    change_password
+)
 
 urlpatterns = [
     path('login/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
@@ -10,7 +17,6 @@ urlpatterns = [
     path('profile/', ProfileView.as_view(), name='user_profile'),
     path('change-password/', change_password, name='change_password'),
     path('organizations/', OrganizationListCreateView.as_view(), name='organization-list'),
-    path('org/<uuid:org_id>/request/', RequestJoinView.as_view()),
-    path('org/<uuid:org_id>/manage-invites/', AdminManageMembershipView.as_view()),
-    path('org/<uuid:org_id>/verify/', VerifyMembershipView.as_view()),
+    path('org/<uuid:org_id>/enroll/', EnrollOrganizationView.as_view(), name='enroll-org'),
+    path('org/<uuid:org_id>/manage-members/', AdminManageMembershipView.as_view(), name='manage-members'),
 ]

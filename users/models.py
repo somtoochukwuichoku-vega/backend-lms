@@ -36,6 +36,7 @@ class Organization(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)    
     members = models.ManyToManyField(User, through='Membership', related_name='organizations')
+    is_public = models.BooleanField(default=False)
     def __str__(self):
         return self.name
     class Meta: 
@@ -55,6 +56,8 @@ class Membership(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     class Meta:
         unique_together = ('user', 'organization')
+        # i am trying to make sure that the user can only be a member of one organization and preventing duplicate entries
+        ordering = ['-created_at']
 
     def __str__(self):
         return f"{self.user.username} — {self.role} in {self.organization.name}"

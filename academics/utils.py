@@ -14,7 +14,6 @@ def generate_lesson_summary(lesson):
         # --- PHASE 1: TRANSCRIPTION (AssemblyAI) ---
         aai.settings.api_key = settings.ASSEMBLY_AI_API_KEY
         
-        # FIX: Explicitly set the speech_models as required by the API error
         config = aai.TranscriptionConfig(
             speech_models=["universal-3-pro", "universal-2"],
             language_detection=True
@@ -64,5 +63,4 @@ def generate_lesson_summary(lesson):
         }
 
     except Exception as e:
-        # Raise a descriptive error for the Django view to catch
         raise Exception(f"AI Pipeline failed: {str(e)}")

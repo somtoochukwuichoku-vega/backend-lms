@@ -61,7 +61,6 @@ class DelegationCreateSerializer(serializers.ModelSerializer):
 class DelegationReadSerializer(serializers.ModelSerializer):
     """
     Used for listing and retrieving delegations.
-    Shows full detail including computed status fields.
     """
     granted_to_username = serializers.ReadOnlyField(source='granted_to.username')
     granted_to_email = serializers.ReadOnlyField(source='granted_to.email')

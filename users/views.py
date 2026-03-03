@@ -69,88 +69,78 @@ class OrganizationListCreateView(generics.ListCreateAPIView):
       return Organization.objects.filter(members=self.request.user)
 
     
-class RequestJoinView(APIView):
+# class RequestJoinView(APIView):
+#     permission_classes = [IsAuthenticated]
+#     def post(self, request, org_id):
+#         org = get_object_or_404(Organization, id=org_id)
+#         # Create a "Locked" membership. No code is generated yet.
+#         # This acts as the "Notification" to the admin.
+#         membership, created = Membership.objects.get_or_create(
+#             user=request.user,
+#             organization=org,
+#             defaults={'is_verified': False, 'role': 'student'}
+#         )
+#         if not created:
+#             return Response({"detail": "Request already exists."}, status=400)
+#         return Response({"message": "Join request sent to Admin."})
+
+
+class EnrollOrganizationView(APIView):
     permission_classes = [IsAuthenticated]
+
     def post(self, request, org_id):
-        org = get_object_or_404(Organization, id=org_id)
-        # Create a "Locked" membership. No code is generated yet.
-        # This acts as the "Notification" to the admin.
+        organization = get_object_or_404(Organization, id=org_id)
+        
+        # Checking to know if membership already exists (active or pending)
         membership, created = Membership.objects.get_or_create(
             user=request.user,
-            organization=org,
-            defaults={'is_verified': False, 'role': 'student'}
+            organization=organization,
+            defaults={'role': 'student'}
         )
-        if not created:
-            return Response({"detail": "Request already exists."}, status=400)
-        return Response({"message": "Join request sent to Admin."})
 
-# --- FLOW 2: ADMIN APPROVES OR INVITES ---
+        if not created:
+            status_text = "active" if membership.is_verified else "pending approval"
+            return Response({"detail": f"You already have an {status_text} membership."}, status=400)
+
+        # checking if the organization is public
+        if getattr(organization, 'is_public', False):
+            membership.is_verified = True
+            membership.save()
+            return Response({"message": f"Successfully joined {organization.name}."}, status=201)
+        
+        return Response({"message": "Join request sent to Admin for approval."}, status=202)
+
+
 class AdminManageMembershipView(APIView):
     permission_classes = [IsOrgAdmin]
 
-    # Admin sees all pending requests
     def get(self, request, org_id):
         pending = Membership.objects.filter(organization_id=org_id, is_verified=False)
-        # (Simplify with a serializer in your real code)
-        data = [{"user": m.user.email, "id": m.id} for m in pending]
+        data = [{"membership_id": m.id, "user_email": m.user.email, "requested_at": m.created_at} for m in pending]
         return Response(data)
 
-    # Admin approves a request OR creates a new invite for someone who didn't request
     def post(self, request, org_id):
-        email = request.data.get('email')
-        role = request.data.get('role', 'student')
-        user_to_invite = get_object_or_404(User, email=email)
-        
-        # Find existing request or create new record
-        membership, created = Membership.objects.get_or_create(
-            user=user_to_invite, 
-            organization_id=org_id
-        )
-        
-        # Auto-generate the unique code
-        code = str(uuid.uuid4())[:8].upper()
-        membership.invite_code = code
-        membership.role = role
-        membership.save()
+        membership_id = request.data.get('membership_id')
+        email = request.data.get('email') # For direct adds
 
-        # SUCCESS: In production, trigger an email here containing the code.
-        return Response({
-            "message": f"Invite code generated for {email}",
-            "invite_code": code 
-        })
-
-# --- FLOW 3: USER VERIFIES CODE ---
-class VerifyMembershipView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def post(self, request, org_id):
-        code = request.data.get('invite_code')
-        membership = get_object_or_404(
-            Membership, 
-            user=request.user, 
-            organization_id=org_id, 
-            invite_code=code
-        )
+        if membership_id:
+            # Case 1: Approving a pending request
+            membership = get_object_or_404(Membership, id=membership_id, organization_id=org_id)
+            membership.is_verified = True
+            membership.save()
+            return Response({"message": f"User {membership.user.email} approved successfully."})
         
-        membership.is_verified = True
-        membership.invite_code = None # Burn the code
-        membership.save()
-        
-        return Response({"message": "Membership verified. Welcome!"})
-
-class JoinOrganizationView(APIView):
-    permission_classes = [IsAuthenticated]
-    def post(self, request, org_id):
-        organization = get_object_or_404(Organization, id=org_id)
-        # Check if they are already a member
-
-        if Membership.objects.filter(user=request.user, organization=organization).exists():
-            return Response({'detail': 'Already a member of this organization.'}, status=400)
-        
-        # Create the membership
-        Membership.objects.create(
-            user=request.user,
-            organization=organization,
-            role='student'  # Default role for joining
-        )
-        return Response({'message': f'Successfully joined {organization.name}'})
+        elif email:
+            # Case 2: Admin is force-adding a user who didn't request
+            user_to_add = get_object_or_404(User, email=email)
+            membership, created = Membership.objects.get_or_create(
+                user=user_to_add,
+                organization_id=org_id,
+                defaults={'is_verified': True, 'role': 'student'}
+            )
+            if not created:
+                membership.is_verified = True
+                membership.save()
+            return Response({"message": f"User {email} has been added directly."})
+            
+        return Response({"error": "Provide membership_id or email"}, status=400)

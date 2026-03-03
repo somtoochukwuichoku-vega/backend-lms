@@ -60,6 +60,7 @@ INSTALLED_APPS = [
     'drf_spectacular',
     'payments',
     'delegations',
+    'django_tasks_db',
  
 ]
 
@@ -223,7 +224,11 @@ CLOUDINARY_STORAGE = {
     'RESOURCE_TYPES': ['image', 'video', 'raw'],
 }
 
-
+TASKS = {
+    "default": {
+        "BACKEND": "django_tasks_db.DatabaseBackend",
+    }
+}
 
 MEDIA_URL = '/media/'
 

@@ -12,6 +12,7 @@ from rest_framework import filters
 import stripe
 
 from academics.permissions import IsCourseOwnerOrOrgAdmin, IsOrgInstructor, IsOrgInstructorOrReadOnly, IsOrgMember
+from academics.tasks import generate_lesson_summary_task
 from academics.utils import generate_lesson_summary
 from payments.models import Transaction
 from users.models import Delegation, Membership, Organization
@@ -219,43 +220,6 @@ def current_enrollments(request):
     
     return paginator.get_paginated_response(enrolled_courses)
 
-# @api_view(['GET','POST'])
-# @parser_classes([MultiPartParser, FormParser])
-# @renderer_classes([JSONRenderer, BrowsableAPIRenderer])
-# def courses_with_enrollment_status(request):
-
-
-#     if request.method == 'POST':
-#         serializer = CourseSerializer(data=request.data)
-#         if serializer.is_valid():
-#             serializer.save()
-#             return Response(serializer.data, status=status.HTTP_201_CREATED)
-#         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-    
-#     courses = Course.objects.all()
-#     courses_data = []
-    
-#     for course in courses:
-#         course_data = CourseSerializer(course).data
-        
-#         if request.user.is_authenticated:
-#             try:
-#                 enrollment = Enrollment.objects.get(user=request.user, course=course)
-#                 course_data['isEnrolled'] = True
-#                 course_data['progress'] = enrollment.progress
-#                 course_data['completedLessons'] = enrollment.completed_lessons
-#             except Enrollment.DoesNotExist:
-#                 course_data['isEnrolled'] = False
-#                 course_data['progress'] = 0
-#                 course_data['completedLessons'] = 0
-#         else:
-#             course_data['isEnrolled'] = False
-#             course_data['progress'] = 0
-#             course_data['completedLessons'] = 0
-            
-#         courses_data.append(course_data)
-    
-#     return Response(courses_data, status=status.HTTP_200_OK)
 
 #MODULES
 class ModuleListCreateView(generics.ListCreateAPIView):
@@ -326,24 +290,40 @@ class GenerateLessonSummaryView(APIView):
     permission_classes = [IsAuthenticated, IsOrgInstructor]
 
     def post(self, request,org_id, lesson_id):
-        lesson = get_object_or_404(Lesson, id=lesson_id)
+        lesson = get_object_or_404(Lesson, id=lesson_id, module__course__organization_id=org_id)
 
-        connection.close()
+        # connection.close()
 
+        #Add checks and validation
+        #Good practice is creating a queue
         try:
-            # Call our new AssemblyAI + Groq utility
-            ai_results = generate_lesson_summary(lesson)
-            
-            # Save both results to DB
-            lesson.transcript = ai_results['transcript']
-            lesson.summary = ai_results['summary']
-            lesson.save()
-            
+            # Call the AssemblyAI + Groq utility
+           
+            # # Saving both results to DB
+            # lesson.transcript = ai_results['transcript']
+            # lesson.summary = ai_results['summary']
+            # lesson.save()
+
+            if lesson.summary and not request.data.get('overwrite'):
+                return Response({
+                "message": "A summary already exists for this lesson. Use 'overwrite': true to reprocess.",
+                "transcript": lesson.transcript,
+                "summary": lesson.summary
+            }, status=status.HTTP_200_OK)
+
+            if not lesson.video_file and not lesson.video_url:
+                return Response(
+                {"error": "This lesson has no video file or URL to process."}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+            generate_lesson_summary_task.enqueue(str(lesson.id))
             return Response({
                 "message": "AI Processing Complete",
                 "transcript": lesson.transcript,
                 "summary": lesson.summary
             })
+       
         except Exception as e:
             return Response({"error": str(e)}, status=500)
 

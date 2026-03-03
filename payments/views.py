@@ -58,27 +58,7 @@ class CreateCheckoutSessionView(APIView):
         
 
 
-
-class RefundPaymentView(APIView):
-    permission_classes = [IsOrgAdmin]
-    def post(self, request, transaction_id):
-        transaction = get_object_or_404(Transaction, id=transaction_id)
-        if transaction.status != 'completed':
-            return Response({'error': 'Only completed transactions can be refunded.'}, status=status.HTTP_400_BAD_REQUEST)
-        
-        try:
-            refund = stripe.Refund.create(
-                payment_intent=transaction.stripe_payment_intent_id,
-                amount=int(transaction.amount * 100),
-            )
-            transaction.status = 'refunded'
-            transaction.refund_id = refund.id
-            transaction.save()
-            return Response({'message': 'Refund successful.'})
-        except Exception as e:
-            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
-        
-
+#when i want to start an installment process
 
 class CreateInstallmentSessionView(APIView):
     permission_classes = [IsAuthenticated]
@@ -118,11 +98,11 @@ class CreateInstallmentSessionView(APIView):
                 user=user,
                 course=course,
                 stripe_checkout_id=checkout_session.id,
-                amount=course.price / 3, # Store as decimal in DB if using DecimalField
+                amount=course.price / 3,
                 status='pending',
                 is_installment=True,
                 total_installments=3,
-                installments_paid=0 # Webhook will increment this to 1 on success
+                installments_paid=0 
             )
 
             return Response({'url': checkout_session.url})
@@ -130,13 +110,15 @@ class CreateInstallmentSessionView(APIView):
             return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
         
 
+#for subsequent installment payments
+
 class ProcessInstallmentView(APIView):
     permission_classes = [IsAuthenticated]
     
     def post(self, request, transaction_id):
         tx = get_object_or_404(Transaction, id=transaction_id, user=request.user)
 
-        # 1. I Found the specific transaction record for this user
+        # 1. Find the specific transaction record for this user
         tx = get_object_or_404(Transaction, id=transaction_id, user=request.user)
         
         # 2. check first to see if full paymement was made: stop if already paid

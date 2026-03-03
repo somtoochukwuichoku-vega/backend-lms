@@ -10,6 +10,7 @@ ROLE_RANK = {
     'student': 0,
 }
 
+#Approach is go opposit way incase you want to add more roles
 
 def get_effective_role(user, org_id):
     from users.models import Membership,Delegation
@@ -59,7 +60,7 @@ class IsOrgMember(permissions.BasePermission):
 class IsOrgInstructor(permissions.BasePermission):
     """
     Allows only instructors and admins of the org.
-    Used for CREATE operations on courses, modules, and lessons.
+    Used for Creating operations on courses, modules, and lessons.
     """
     message = "You must be an instructor or admin of this organization."
     def has_permission(self, request, view):
@@ -112,7 +113,6 @@ class IsOrgInstructorOrReadOnly(permissions.BasePermission):
             # Any verified member can read
             return role is not None
 
-        # Writes require instructor or admin
         return role in ['admin', 'instructor']
 
 class IsCourseOwnerOrOrgAdmin(permissions.BasePermission):
@@ -128,11 +128,9 @@ class IsCourseOwnerOrOrgAdmin(permissions.BasePermission):
         if not request.user or not request.user.is_authenticated:
             return False
 
-        # Safe methods pass through — queryset scoping handles data isolation
         if request.method in permissions.SAFE_METHODS:
             return True
 
-        # Resolve the parent course from whatever object type we received
         course = _resolve_course(obj)
         if course is None:
             return False
@@ -187,64 +185,3 @@ def _resolve_course(obj):
     if isinstance(obj, Lesson):
         return obj.module.course
     return None
-
-
-
-
-
-
-
-
-# class IsAdminUserRole(permissions.BasePermission):
-
-#     def has_permission(self, request, view):
-#         # safe methods Allows (GET, HEAD, OPTIONS) for everyone authenticated
-#         if request.method in permissions.SAFE_METHODS:
-#             return request.user and request.user.is_authenticated
-        
-#         return request.user and request.user.is_staff
-    
-
-# class IsOrgAdmin(permissions.BasePermission):
-#     def has_permission(self, request, view):
-#         org_id = view.kwargs.get('org_id')
-#         if not request.user.is_authenticated or not org_id:
-#             return False
-        
-#         return Membership.objects.filter(
-#             user=request.user, 
-#             organization_id=org_id, 
-#             role='admin'
-#         ).exists()
-    
-
-# class IsOrgInstructor(permissions.BasePermission):
-#     def has_permission(self, request, view):
-#         org_id = view.kwargs.get('org_id')
-#         if not request.user.is_authenticated:
-#             return False
-        
-#         org_id = view.kwargs.get('org_id')
-#         if not org_id:
-#             return False
-
-#         return Membership.objects.filter(
-#             user=request.user, 
-#             organization_id=org_id, 
-#             role__in=['admin', 'instructor'] # Admins can also do instructor tasks
-#         ).exists()
-    
-# class IsCourseInstructorOwner(permissions.BasePermission):
-#     def has_object_permission(self, request, view, obj):
-
-#         if request.method in permissions.SAFE_METHODS:
-#             return request.user.is_authenticated
-#         # Checking If the object is a Course, check its instructor
-#         if hasattr(obj, 'instructor'):
-#             return obj.instructor == request.user
-#         # Checking If the object is a Lesson or Module, check the parent course instructor
-#         if hasattr(obj, 'module'):
-#             return obj.module.course.instructor == request.user
-#         if hasattr(obj, 'course'):
-#             return obj.course.instructor == request.user
-#         return False
