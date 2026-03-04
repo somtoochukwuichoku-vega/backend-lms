@@ -16,6 +16,8 @@ import os
 from dotenv import load_dotenv
 from urllib.parse import urlparse, parse_qsl
 import dj_database_url
+import sentry_sdk
+from sentry_sdk.integrations.django import DjangoIntegration
 
 load_dotenv()
 
@@ -244,3 +246,13 @@ GROQ_API_KEY = os.getenv('GROQ_API_KEY')
 
 
 
+# SENTRY/GLITCHTIP
+
+
+
+sentry_sdk.init(
+    dsn="https://0ef4a6b396a44986a904c24eafe1210c@app.glitchtip.com/20895",
+    integrations=[DjangoIntegration()],
+    auto_session_tracking=False,
+    traces_sample_rate=0
+)
