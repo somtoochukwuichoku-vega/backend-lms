@@ -1,4 +1,5 @@
-﻿import uuid
+﻿import django.db.models
+import uuid
 from django.shortcuts import get_object_or_404
 from rest_framework import generics, status
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -66,7 +67,7 @@ class OrganizationListCreateView(generics.ListCreateAPIView):
     serializer_class = OrganizationSerializer
     
     def get_queryset(self):
-      return Organization.objects.filter(members=self.request.user)
+        return Organization.objects.filter(members=self.request.user)
 
     
 # class RequestJoinView(APIView):
@@ -84,6 +85,22 @@ class OrganizationListCreateView(generics.ListCreateAPIView):
 #             return Response({"detail": "Request already exists."}, status=400)
 #         return Response({"message": "Join request sent to Admin."})
 
+
+class PublicOrganizationListView(generics.ListAPIView):
+    """
+    Returns only public organizations that the current user 
+    is NOT already a member of.
+    """
+    serializer_class = OrganizationSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        # Get IDs of orgs the user is already in
+        my_org_ids = Membership.objects.filter(user=user).values_list('organization_id', flat=True)
+        
+        # Return public orgs excluding the ones user already joined
+        return Organization.objects.filter(is_public=True).exclude(id__in=my_org_ids)
 
 class EnrollOrganizationView(APIView):
     permission_classes = [IsAuthenticated]

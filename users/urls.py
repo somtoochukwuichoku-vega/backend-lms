@@ -3,7 +3,8 @@ from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
 from users.views import (
     AdminManageMembershipView, 
-    OrganizationListCreateView, 
+    OrganizationListCreateView,
+    PublicOrganizationListView, 
     RegisterView, 
     ProfileView, 
     EnrollOrganizationView,
@@ -19,4 +20,7 @@ urlpatterns = [
     path('organizations/', OrganizationListCreateView.as_view(), name='organization-list'),
     path('org/<uuid:org_id>/enroll/', EnrollOrganizationView.as_view(), name='enroll-org'),
     path('org/<uuid:org_id>/manage-members/', AdminManageMembershipView.as_view(), name='manage-members'),
+
+    # Public route
+    path('organizations/explore/', PublicOrganizationListView.as_view(), name='organization-explore'),
 ]
