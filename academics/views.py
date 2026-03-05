@@ -56,7 +56,10 @@ class CourseListCreateView(generics.ListCreateAPIView):
     search_fields = ['title', 'description', 'instructor__username']
 
     def get_queryset(self):
-        return Course.objects.filter(organization_id=self.kwargs.get('org_id'))
+       org_id = self.kwargs.get('org_id')
+       return Course.objects.filter(
+        Q(organization_id=org_id) | Q(organization__is_public=True)
+    ).distinct()
     
     def perform_create(self, serializer):
         serializer.save(
