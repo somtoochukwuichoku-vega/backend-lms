@@ -122,8 +122,9 @@ class EnrollmentSerializer(serializers.ModelSerializer):
 
         # Get user from context - don't pass it to create() since perform_create handles it
         user = self.context['request'].user
+        is_member = Membership.objects.filter(user=user, organization=course.organization).exists()
 
-        if not Membership.objects.filter(user=user, organization=course.organization).exists():
+        if not is_member and not getattr(course.organization, 'is_public', False):
             raise serializers.ValidationError(
                 {'detail': 'You must be a member of this organization to enroll in its courses.'}
             )

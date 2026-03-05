@@ -98,7 +98,10 @@ class CourseListWithEnrollmentView(generics.ListAPIView):
             user=self.request.user,
             is_verified=True
         ).values_list('organization_id', flat=True)
-        return Course.objects.filter(organization_id__in=user_org_ids)
+        return Course.objects.filter(
+            Q(organization_id__in=user_org_ids) | 
+            Q(organization__is_public=True)
+        ).distinct()
 
     def list(self, request, *args, **kwargs):
         queryset = self.get_queryset()

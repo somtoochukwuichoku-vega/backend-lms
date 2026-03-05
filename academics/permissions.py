@@ -3,6 +3,8 @@ from rest_framework import permissions
 
 from django.db import models
 
+from users.models import Organization
+
 # Using Role ranking to resolve the highest role when a user has both
 ROLE_RANK = {
     'admin': 2,
@@ -54,6 +56,12 @@ class IsOrgMember(permissions.BasePermission):
         org_id = view.kwargs.get('org_id')
         if not org_id:
             return False
+        
+        # Check if the specific organization being requested is public
+        org = Organization.objects.filter(id=org_id).first()
+        if org and org.is_public and request.method in permissions.SAFE_METHODS:
+            return True
+        
         return get_effective_role(request.user, org_id) is not None
 
 
