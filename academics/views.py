@@ -57,9 +57,7 @@ class CourseListCreateView(generics.ListCreateAPIView):
 
     def get_queryset(self):
        org_id = self.kwargs.get('org_id')
-       return Course.objects.filter(
-        Q(organization_id=org_id) | Q(organization__is_public=True)
-    ).distinct()
+       return Course.objects.filter(organization_id=org_id)
     
     def perform_create(self, serializer):
         serializer.save(
@@ -98,10 +96,8 @@ class CourseListWithEnrollmentView(generics.ListAPIView):
             user=self.request.user,
             is_verified=True
         ).values_list('organization_id', flat=True)
-        return Course.objects.filter(
-            Q(organization_id__in=user_org_ids) | 
-            Q(organization__is_public=True)
-        ).distinct()
+        
+        return Course.objects.filter(organization_id__in=user_org_ids)
 
     def list(self, request, *args, **kwargs):
         queryset = self.get_queryset()
