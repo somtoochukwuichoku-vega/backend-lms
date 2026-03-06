@@ -51,7 +51,7 @@ class RegisterSerializer(serializers.ModelSerializer):
 class OrganizationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Organization
-        fields = ['name', 'id', 'is_public']
+        fields = ['id', 'name', 'is_public', 'creator', 'created_at', 'updated_at']
         read_only_fields = ['id', 'creator', 'created_at', 'updated_at']
     def create(self, validated_data):
         user = self.context['request'].user
