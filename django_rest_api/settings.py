@@ -37,8 +37,8 @@ DEBUG = True
 ALLOWED_HOSTS = [
     'backend-lms-lv7l.onrender.com', 
     'localhost', 
-    '127.0.0.1'
-    'https://learn-ez-frontend.vercel.app/'
+    '127.0.0.1',
+    'https://learn-ez-frontend.vercel.app/',
     ]
 
 
@@ -198,7 +198,7 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:3001",
     "http://localhost:5173",
     "https://backend-lms-lv7l.onrender.com",
-    'https://learn-ez-frontend.vercel.app/'
+    'https://learn-ez-frontend.vercel.app/',
 ]
 
 CORS_ALLOW_CREDENTIALS = True
