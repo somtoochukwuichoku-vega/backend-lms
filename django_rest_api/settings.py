@@ -38,6 +38,7 @@ ALLOWED_HOSTS = [
     'backend-lms-lv7l.onrender.com', 
     'localhost', 
     '127.0.0.1'
+    'https://learn-ez-frontend.vercel.app/'
     ]
 
 
