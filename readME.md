@@ -66,6 +66,23 @@ A unique feature of this project is the **Delegation** system. This allows an ad
 * **payments/**: Manages the transaction records and Stripe integration.
 * **django_rest_api/settings.py**: Configuration for Cloudinary, Stripe, AssemblyAI, and Groq.
 
+
+## Live Project Links
+Production Backend API: https://backend-lms-lv7l.onrender.com/api/v1/
+
+Live Frontend Application: https://learn-ez-frontend.vercel.app/
+
+Admin Panel: https://backend-lms-lv7l.onrender.com/admin/
+
+## You can use the test account to browse through the project 
+Username:Klocwise
+password:klocwise@
+
+## API Documentation
+The project includes interactive documentation generated via drf-spectacular:
+
+Swagger UI (Interactive): https://backend-lms-lv7l.onrender.com/api/docs/swagger/
+
 ## Future Roadmap
 
 I am looking to expand this system to include:
